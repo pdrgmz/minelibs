@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
+import { Button, Card, ErrorBanner, Field, Icon, inputClass } from '../components/ui';
+import { useAuth } from '../context/AuthContext';
 
 export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const { t } = useTranslation();
@@ -29,15 +30,21 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface px-4">
-      <div className="w-full max-w-sm rounded-xl border border-slate-700 bg-panel p-6">
-        <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-accent">{t('appName')}</h1>
+    <div className="flex min-h-screen items-center justify-center bg-surface px-4 py-10">
+      <Card className="w-full max-w-md p-6 sm:p-8">
+        <div className="mb-8 flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/15 text-accent"><Icon name="layers" size={22} /></span>
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight text-white">{t('appName')}</h1>
+              <p className="mt-0.5 text-xs text-slate-500">{mode === 'login' ? t('loginSubtitle') : t('registerSubtitle')}</p>
+            </div>
+          </div>
           <LanguageSwitcher />
         </div>
-        <form onSubmit={(event) => void onSubmit(event)} className="space-y-4">
-          <label className="block">
-            <span className="mb-1 block text-sm text-slate-300">{t('username')}</span>
+
+        <form onSubmit={(event) => void onSubmit(event)} className="space-y-5">
+          <Field label={t('username')}>
             <input
               required
               minLength={3}
@@ -45,11 +52,10 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
               autoComplete="username"
               value={username}
               onChange={(event) => setUsername(event.target.value)}
-              className="w-full rounded border border-slate-600 bg-surface px-3 py-2"
+              className={inputClass}
             />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-sm text-slate-300">{t('password')}</span>
+          </Field>
+          <Field label={t('password')} hint={mode === 'register' ? t('passwordHint') : undefined}>
             <input
               required
               type="password"
@@ -57,26 +63,22 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="w-full rounded border border-slate-600 bg-surface px-3 py-2"
+              className={inputClass}
             />
-          </label>
-          {error && <p className="text-sm text-red-400">{error}</p>}
-          <button disabled={busy} className="w-full rounded bg-accent px-4 py-2 font-semibold disabled:opacity-50">
+          </Field>
+          <ErrorBanner>{error}</ErrorBanner>
+          <Button type="submit" variant="primary" loading={busy} className="w-full">
             {mode === 'login' ? t('login') : t('register')}
-          </button>
+          </Button>
         </form>
-        <p className="mt-4 text-center text-sm text-slate-400">
-          {mode === 'login' ? (
-            <>
-              {t('register')}: <Link to="/register" className="text-accent underline">{t('register')}</Link>
-            </>
-          ) : (
-            <>
-              {t('login')}: <Link to="/login" className="text-accent underline">{t('login')}</Link>
-            </>
-          )}
+
+        <p className="mt-6 border-t border-slate-800 pt-5 text-center text-sm text-slate-400">
+          {mode === 'login' ? t('noAccount') : t('haveAccount')}{' '}
+          <Link to={mode === 'login' ? '/register' : '/login'} className="font-medium text-accent hover:underline">
+            {mode === 'login' ? t('register') : t('login')}
+          </Link>
         </p>
-      </div>
+      </Card>
     </div>
   );
 }

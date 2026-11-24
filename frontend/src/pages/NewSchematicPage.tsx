@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
+import { Button, Card, ErrorBanner, Field, Icon, PageHeader, PromptModal, inputClass } from '../components/ui';
 import type { Collection, SchematicDetail } from '../types';
 
 export function NewSchematicPage() {
@@ -19,17 +20,40 @@ export function NewSchematicPage() {
   const [force, setForce] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [collectionOpen, setCollectionOpen] = useState(false);
+  const [collectionDraft, setCollectionDraft] = useState('');
+  const [collectionError, setCollectionError] = useState('');
+  const [collectionBusy, setCollectionBusy] = useState(false);
 
   useEffect(() => {
     void api.collections.list().then(setCollections).catch(() => undefined);
   }, []);
 
-  const createCollection = async () => {
-    const value = window.prompt(t('createCollection'));
-    if (!value) return;
-    const collection = await api.collections.create(value);
-    setCollections((current) => [...current, collection]);
-    setCollectionId(collection.id);
+  const openCreateCollection = () => {
+    setCollectionDraft('');
+    setCollectionError('');
+    setCollectionOpen(true);
+  };
+
+  const createCollection = async (value: string) => {
+    const name = value.trim();
+    if (!name) {
+      setCollectionError(t('requiredError'));
+      return;
+    }
+    setCollectionBusy(true);
+    setCollectionError('');
+    try {
+      const collection = await api.collections.create(name);
+      setCollections((current) => [...current, collection]);
+      setCollectionId(collection.id);
+      setCollectionOpen(false);
+      setCollectionDraft('');
+    } catch (cause) {
+      setCollectionError(cause instanceof Error ? cause.message : t('error'));
+    } finally {
+      setCollectionBusy(false);
+    }
   };
 
   const onSubmit = async (event: FormEvent) => {
@@ -63,58 +87,88 @@ export function NewSchematicPage() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
-      <h1 className="text-2xl font-bold">{t('newSchematic')}</h1>
-      <form onSubmit={(event) => void onSubmit(event)} className="space-y-4 rounded-xl border border-slate-700 bg-panel p-5">
-        <label className="block">
-          <span className="mb-1 block text-sm">{t('file')}</span>
-          <input required type="file" accept=".litematic,.schem,.nbt" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="w-full text-sm" />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm">{t('name')}</span>
-          <input required maxLength={150} value={name} onChange={(event) => setName(event.target.value)} className="w-full rounded border border-slate-600 bg-surface px-3 py-2" />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm">{t('description')}</span>
-          <textarea rows={3} value={description} onChange={(event) => setDescription(event.target.value)} className="w-full rounded border border-slate-600 bg-surface px-3 py-2" />
-        </label>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block">
-            <span className="mb-1 block text-sm">{t('youtubeUrl')}</span>
-            <input type="url" value={youtubeUrl} onChange={(event) => setYoutubeUrl(event.target.value)} placeholder="https://youtu.be/..." className="w-full rounded border border-slate-600 bg-surface px-3 py-2" />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-sm">{t('minecraftVersion')}</span>
-            <input maxLength={32} value={minecraftVersion} onChange={(event) => setMinecraftVersion(event.target.value)} placeholder="1.21.4" className="w-full rounded border border-slate-600 bg-surface px-3 py-2" />
-          </label>
-        </div>
-        <label className="block">
-          <span className="mb-1 block text-sm">{t('tags')}</span>
-          <input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="hierro, redstone" className="w-full rounded border border-slate-600 bg-surface px-3 py-2" />
-        </label>
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="flex-1">
-            <span className="mb-1 block text-sm">{t('collections')}</span>
-            <select value={collectionId} onChange={(event) => setCollectionId(event.target.value)} className="w-full rounded border border-slate-600 bg-surface px-3 py-2">
-              <option value="">—</option>
-              {collections.map((collection) => <option key={collection.id} value={collection.id}>{collection.name}</option>)}
-            </select>
-          </label>
-          <button type="button" onClick={() => void createCollection()} className="rounded border border-slate-600 px-3 py-2 text-sm">+ {t('createCollection')}</button>
-          <label className="flex items-center gap-1 text-sm">
-            <input type="checkbox" checked={isFavorite} onChange={(event) => setIsFavorite(event.target.checked)} />
-            {t('favorite')}
-          </label>
-        </div>
-        {force && (
-          <label className="flex items-center gap-2 rounded border border-yellow-700 bg-yellow-900/30 p-2 text-sm">
-            <input type="checkbox" checked={force} onChange={(event) => setForce(event.target.checked)} />
-            {t('uploadAnyway')}
-          </label>
-        )}
-        {error && <p className="text-sm text-red-400">{error}</p>}
-        <button disabled={busy || !file} className="rounded bg-accent px-4 py-2 font-semibold disabled:opacity-50">{t('save')}</button>
-      </form>
+    <div className="mx-auto max-w-3xl space-y-6">
+      <PageHeader
+        title={t('newSchematic')}
+        description={t('newSchematicSubtitle')}
+        back={<Link to="/" className="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white"><Icon name="chevronLeft" size={14} />{t('library')}</Link>}
+      />
+      <Card>
+        <form onSubmit={(event) => void onSubmit(event)} className="space-y-5">
+          <div>
+            <span className="mb-1.5 block text-sm font-medium text-slate-200">{t('file')}</span>
+            <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-slate-700 bg-surface/50 p-4 text-sm hover:border-accent/60">
+              <Icon name="upload" size={20} className="text-accent" />
+              <span className="min-w-0 flex-1">
+                <span className="block font-medium text-slate-100">{file ? file.name : t('file')}</span>
+                <span className="mt-0.5 block text-xs text-slate-500">.litematic · .schem · .nbt</span>
+              </span>
+              <input required type="file" accept=".litematic,.schem,.nbt" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="sr-only" />
+              <span className="rounded-lg border border-slate-700 px-2.5 py-1 text-xs text-slate-300">{t('upload')}</span>
+            </label>
+          </div>
+          <Field label={t('name')}>
+            <input required maxLength={150} value={name} onChange={(event) => setName(event.target.value)} className={inputClass} />
+          </Field>
+          <Field label={t('description')}>
+            <textarea rows={3} value={description} onChange={(event) => setDescription(event.target.value)} className={inputClass} />
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label={t('youtubeUrl')}>
+              <input type="url" value={youtubeUrl} onChange={(event) => setYoutubeUrl(event.target.value)} placeholder="https://youtu.be/..." className={inputClass} />
+            </Field>
+            <Field label={t('minecraftVersion')}>
+              <input maxLength={32} value={minecraftVersion} onChange={(event) => setMinecraftVersion(event.target.value)} placeholder="1.21.4" className={inputClass} />
+            </Field>
+          </div>
+          <Field label={t('tags')} hint={t('tagsHint')}>
+            <input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="hierro, redstone" className={inputClass} />
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
+            <Field label={t('collections')}>
+              <select value={collectionId} onChange={(event) => setCollectionId(event.target.value)} className={inputClass}>
+                <option value="">—</option>
+                {collections.map((collection) => <option key={collection.id} value={collection.id}>{collection.name}</option>)}
+              </select>
+            </Field>
+            <Button icon="plus" onClick={openCreateCollection}>+ {t('createCollection')}</Button>
+          </div>
+          <div className="flex flex-wrap gap-4">
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-200">
+              <input type="checkbox" checked={isFavorite} onChange={(event) => setIsFavorite(event.target.checked)} className="accent-accent" />
+              {t('favorite')}
+            </label>
+            {force && (
+              <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-amber-800/70 bg-amber-950/30 px-3 py-2 text-sm text-amber-200">
+                <input type="checkbox" checked={force} onChange={(event) => setForce(event.target.checked)} className="accent-amber-400" />
+                {t('uploadAnyway')}
+              </label>
+            )}
+          </div>
+          <ErrorBanner>{error}</ErrorBanner>
+          <div className="flex flex-wrap justify-end gap-2 border-t border-slate-800 pt-4">
+            <Button as-link to="/" icon="close">{t('cancel')}</Button>
+            <Button type="submit" variant="primary" icon="check" loading={busy} disabled={!file}>{t('save')}</Button>
+          </div>
+        </form>
+      </Card>
+
+      <PromptModal
+        open={collectionOpen}
+        title={t('createCollection')}
+        label={t('collectionName')}
+        value={collectionDraft}
+        onChange={setCollectionDraft}
+        onSubmit={(value) => void createCollection(value)}
+        onClose={() => { setCollectionOpen(false); setCollectionError(''); }}
+        confirmLabel={t('create')}
+        cancelLabel={t('cancel')}
+        closeLabel={t('close')}
+        placeholder={t('collectionName')}
+        error={collectionError}
+        loading={collectionBusy}
+        maxLength={100}
+      />
     </div>
   );
 }

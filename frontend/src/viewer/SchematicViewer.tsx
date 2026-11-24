@@ -561,20 +561,20 @@ export function SchematicViewer(props: SchematicViewerProps) {
   const rulerMax = Math.max(size[0], size[1], size[2]);
 
   return (
-    <div className="relative h-96 w-full overflow-hidden rounded bg-slate-900" data-testid="schematic-viewer">
-      <canvas ref={canvasRef} className="h-full w-full" aria-label="Visor 3D de schematic" />
+    <div className="relative h-96 w-full overflow-hidden rounded-2xl border border-slate-800 bg-slate-900" data-testid="schematic-viewer">
+      <canvas ref={canvasRef} className="h-full w-full touch-none" aria-label="Visor 3D de schematic" />
 
-      <div className="pointer-events-none absolute left-2 top-2 rounded bg-black/60 px-2 py-1 text-xs text-white" role="status" aria-live="polite">
+      <div className="pointer-events-none absolute left-3 top-3 rounded-lg border border-white/10 bg-slate-950/75 px-2.5 py-1.5 text-xs text-slate-100 backdrop-blur-sm" role="status" aria-live="polite">
         {status}
       </div>
       {fatalError && (
-        <div className="absolute inset-x-2 top-10 rounded bg-red-900/90 px-3 py-2 text-sm text-white" role="alert">
+        <div className="absolute inset-x-3 top-12 rounded-lg border border-red-800 bg-red-950/90 px-3 py-2 text-sm text-red-100" role="alert">
           {fatalError}
         </div>
       )}
 
       {props.showGrid && chunks.length > 0 && (
-        <div className="absolute right-2 top-2 max-h-32 overflow-auto rounded bg-black/60 p-2 text-[10px] text-white" aria-label="Secciones 16×16×16 visibles">
+        <div className="absolute right-3 top-3 max-h-32 overflow-auto rounded-lg border border-white/10 bg-slate-950/75 p-2 font-mono text-[10px] text-slate-200 backdrop-blur-sm" aria-label="Secciones 16×16×16 visibles">
           {chunks.slice(0, 12).map((chunk) => (
             <div key={chunk.key}>{chunk.key} · {chunk.count}</div>
           ))}
@@ -583,7 +583,7 @@ export function SchematicViewer(props: SchematicViewerProps) {
       )}
 
       {props.measureMode && (
-        <div className="absolute bottom-2 right-2 rounded bg-black/70 px-2 py-1 text-[11px] text-amber-200" role="status" aria-live="polite">
+        <div className="absolute bottom-3 right-3 rounded-lg border border-amber-500/30 bg-slate-950/80 px-2.5 py-1.5 text-[11px] font-medium text-amber-200 backdrop-blur-sm" role="status" aria-live="polite">
           {measurement
             ? `Δx ${measurement.dx} · Δy ${measurement.dy} · Δz ${measurement.dz} · d ${measurement.distance}`
             : 'Haz clic en dos bloques para medir'}
@@ -592,7 +592,7 @@ export function SchematicViewer(props: SchematicViewerProps) {
 
       {props.showRuler && (
         <div
-          className="absolute bottom-2 left-2 rounded bg-black/60 px-2 py-1 text-[10px] text-white"
+          className="absolute bottom-3 left-3 rounded-lg border border-white/10 bg-slate-950/75 px-2.5 py-1.5 text-[10px] text-slate-100 backdrop-blur-sm"
           aria-label={`Regla de 0 a ${rulerMax} bloques`}
         >
           <div className="relative h-3 w-40 border-b border-white/80">

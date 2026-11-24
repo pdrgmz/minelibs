@@ -1,6 +1,7 @@
 import { useState, type ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, downloadBlob, ApiError } from '../api/client';
+import { Button, Card, ErrorBanner, Icon, NoticeBanner, PageHeader } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import type { ImportResult } from '../types';
 
@@ -52,39 +53,52 @@ export function ImportExportPage() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
-      <h1 className="text-2xl font-bold">{t('importExport')}</h1>
-      <p className="rounded-lg bg-panel p-4 text-sm text-slate-300">{t('backupHint')}</p>
+    <div className="mx-auto max-w-3xl space-y-6">
+      <PageHeader title={t('importExport')} description={t('backupHint')} />
+      <ErrorBanner>{error}</ErrorBanner>
 
-      <section className="grid gap-3 rounded-xl border border-slate-700 bg-panel p-5 sm:grid-cols-2">
-        <button disabled={busy} onClick={() => void exportMine()} className="rounded bg-accent px-4 py-3 font-semibold disabled:opacity-50">
-          {t('exportBackup')}
-        </button>
-        <label className="cursor-pointer rounded border border-slate-600 px-4 py-3 text-center font-semibold">
-          {t('chooseZip')}
-          <input type="file" accept=".zip,application/zip" className="hidden" onChange={(event) => void onFile(event)} />
-        </label>
-        {user?.role === 'ADMIN' && (
-          <button disabled={busy} onClick={() => void exportAll()} className="rounded border border-slate-600 px-4 py-3 sm:col-span-2">
-            {t('adminExport')}
-          </button>
-        )}
-      </section>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card className="flex flex-col">
+          <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10 text-accent"><Icon name="download" size={20} /></span>
+          <h2 className="font-semibold text-white">{t('exportBackup')}</h2>
+          <p className="mt-1 flex-1 text-sm text-slate-400">{t('exportBackupHint')}</p>
+          <Button variant="primary" icon="download" loading={busy} onClick={() => void exportMine()} className="mt-4 w-full">{t('exportBackup')}</Button>
+        </Card>
+        <Card className="flex flex-col">
+          <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10 text-accent"><Icon name="upload" size={20} /></span>
+          <h2 className="font-semibold text-white">{t('chooseZip')}</h2>
+          <p className="mt-1 flex-1 text-sm text-slate-400">{t('importHint')}</p>
+          <label className="mt-4 flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-700 bg-surface px-3 text-sm font-medium text-slate-100 hover:border-slate-600 disabled:opacity-50">
+            <Icon name="folder" size={15} />
+            {t('chooseZip')}
+            <input type="file" accept=".zip,application/zip" className="sr-only" onChange={(event) => void onFile(event)} />
+          </label>
+        </Card>
+      </div>
 
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {user?.role === 'ADMIN' && (
+        <Card className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-800 text-slate-300"><Icon name="shield" size={20} /></span>
+            <div>
+              <h2 className="font-semibold text-white">{t('adminExport')}</h2>
+              <p className="mt-0.5 text-sm text-slate-400">{t('adminExportHint')}</p>
+            </div>
+          </div>
+          <Button icon="download" loading={busy} onClick={() => void exportAll()}>{t('adminExport')}</Button>
+        </Card>
+      )}
 
       {result && (
-        <section className="rounded-xl border border-slate-700 bg-panel p-5">
-          <h2 className="mb-3 text-lg font-semibold">{t('importResult')}</h2>
-          <p className="text-sm">
-            {t('imported')}: <strong>{result.imported}</strong> · {t('skipped')}: <strong>{result.skipped}</strong>
-          </p>
+        <Card>
+          <h2 className="mb-3 text-base font-semibold text-white">{t('importResult')}</h2>
+          <NoticeBanner>{t('imported')}: <strong>{result.imported}</strong> · {t('skipped')}: <strong>{result.skipped}</strong></NoticeBanner>
           {result.errors.length > 0 && (
-            <ul className="mt-3 max-h-48 list-disc overflow-auto pl-5 text-sm text-amber-300">
+            <ul className="mt-3 max-h-48 list-disc space-y-1 overflow-auto pl-5 text-sm text-amber-300">
               {result.errors.map((message, index) => <li key={index}>{message}</li>)}
             </ul>
           )}
-        </section>
+        </Card>
       )}
     </div>
   );
