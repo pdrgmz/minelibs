@@ -1,0 +1,34 @@
+{
+  "dimensions": {
+    "widthX": 8,
+    "heightY": 2,
+    "lengthZ": 1
+  },
+  "totalBlocks": 7,
+  "materials": [
+    {
+      "blockId": "minecraft:oak_door",
+      "displayName": "Oak Door",
+      "count": 1,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:oak_sign",
+      "displayName": "Oak Sign",
+      "count": 1,
+      "stackSize": 16
+    },
+    {
+      "blockId": "minecraft:red_bed",
+      "displayName": "Red Bed",
+      "count": 1,
+      "stackSize": 1
+    },
+    {
+      "blockId": "minecraft:sunflower",
+      "displayName": "Sunflower",
+      "count": 1,
+      "stackSize": 64
+    }
+  ]
+}

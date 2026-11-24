@@ -1,0 +1,148 @@
+{
+  "dimensions": {
+    "widthX": 13,
+    "heightY": 8,
+    "lengthZ": 18
+  },
+  "totalBlocks": 699,
+  "materials": [
+    {
+      "blockId": "minecraft:grass_block",
+      "displayName": "Grass Block",
+      "count": 234,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:black_stained_glass",
+      "displayName": "Black Stained Glass",
+      "count": 180,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:moss_block",
+      "displayName": "Moss Block",
+      "count": 56,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:bamboo",
+      "displayName": "Bamboo",
+      "count": 51,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:black_stained_glass_pane",
+      "displayName": "Black Stained Glass Pane",
+      "count": 28,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:redstone_block",
+      "displayName": "Redstone Block",
+      "count": 24,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:dispenser",
+      "displayName": "Dispenser",
+      "count": 20,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:dropper",
+      "displayName": "Dropper",
+      "count": 20,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:hopper",
+      "displayName": "Hopper",
+      "count": 20,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:honey_block",
+      "displayName": "Honey Block",
+      "count": 12,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:slime_block",
+      "displayName": "Slime Block",
+      "count": 12,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:packed_ice",
+      "displayName": "Packed Ice",
+      "count": 7,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:redstone",
+      "displayName": "Redstone",
+      "count": 7,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:glow_lichen",
+      "displayName": "Glow Lichen",
+      "count": 6,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:shroomlight",
+      "displayName": "Shroomlight",
+      "count": 5,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:ender_chest",
+      "displayName": "Ender Chest",
+      "count": 4,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:sticky_piston",
+      "displayName": "Sticky Piston",
+      "count": 4,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:warped_fence_gate",
+      "displayName": "Warped Fence Gate",
+      "count": 3,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:note_block",
+      "displayName": "Note Block",
+      "count": 2,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:lever",
+      "displayName": "Lever",
+      "count": 1,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:redstone_lamp",
+      "displayName": "Redstone Lamp",
+      "count": 1,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:redstone_torch",
+      "displayName": "Redstone Torch",
+      "count": 1,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:warped_pressure_plate",
+      "displayName": "Warped Pressure Plate",
+      "count": 1,
+      "stackSize": 64
+    }
+  ]
+}

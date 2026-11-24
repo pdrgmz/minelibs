@@ -1,0 +1,118 @@
+{
+  "dimensions": {
+    "widthX": 17,
+    "heightY": 24,
+    "lengthZ": 15
+  },
+  "totalBlocks": 508,
+  "materials": [
+    {
+      "blockId": "minecraft:cobblestone",
+      "displayName": "Cobblestone",
+      "count": 180,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:smooth_stone",
+      "displayName": "Smooth Stone",
+      "count": 113,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:white_stained_glass",
+      "displayName": "White Stained Glass",
+      "count": 65,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:oak_leaves",
+      "displayName": "Oak Leaves",
+      "count": 60,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:redstone",
+      "displayName": "Redstone",
+      "count": 32,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:piston",
+      "displayName": "Piston",
+      "count": 22,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:redstone_torch",
+      "displayName": "Redstone Torch",
+      "count": 11,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:smooth_stone_slab",
+      "displayName": "Smooth Stone Slab",
+      "count": 8,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:repeater",
+      "displayName": "Repeater",
+      "count": 5,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:observer",
+      "displayName": "Observer",
+      "count": 3,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:tripwire_hook",
+      "displayName": "Tripwire Hook",
+      "count": 2,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:comparator",
+      "displayName": "Comparator",
+      "count": 1,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:dropper",
+      "displayName": "Dropper",
+      "count": 1,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:lever",
+      "displayName": "Lever",
+      "count": 1,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:oak_fence",
+      "displayName": "Oak Fence",
+      "count": 1,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:oak_sign",
+      "displayName": "Oak Sign",
+      "count": 1,
+      "stackSize": 16
+    },
+    {
+      "blockId": "minecraft:tnt",
+      "displayName": "Tnt",
+      "count": 1,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:tripwire",
+      "displayName": "Tripwire",
+      "count": 1,
+      "stackSize": 64
+    }
+  ]
+}

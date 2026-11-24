@@ -1,0 +1,16 @@
+{
+  "dimensions": {
+    "widthX": 18,
+    "heightY": 1,
+    "lengthZ": 1
+  },
+  "totalBlocks": 2,
+  "materials": [
+    {
+      "blockId": "minecraft:oak_stairs",
+      "displayName": "Oak Stairs",
+      "count": 2,
+      "stackSize": 64
+    }
+  ]
+}

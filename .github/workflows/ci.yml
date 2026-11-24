@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Backend — install, migrate, typecheck, test, build
+        working-directory: backend
+        env:
+          DATABASE_URL: file:./dev.db
+          JWT_SECRET: ci-secret-con-al-menos-16-caracteres
+          ADMIN_USERNAME: admin
+          ADMIN_PASSWORD: ci-admin-password-123
+          NODE_ENV: test
+        run: |
+          npm ci
+          npx prisma migrate deploy
+          npm run typecheck
+          npm test
+          npm run build
+
+      - name: Frontend — install, typecheck, test, build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          npm run build
+
+      - name: Docker build
+        run: docker compose build

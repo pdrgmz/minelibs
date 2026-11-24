@@ -1,0 +1,16 @@
+{
+  "dimensions": {
+    "widthX": 6,
+    "heightY": 2,
+    "lengthZ": 6
+  },
+  "totalBlocks": 3,
+  "materials": [
+    {
+      "blockId": "minecraft:stone",
+      "displayName": "Stone",
+      "count": 3,
+      "stackSize": 64
+    }
+  ]
+}

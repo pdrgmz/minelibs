@@ -1,0 +1,22 @@
+{
+  "dimensions": {
+    "widthX": 3,
+    "heightY": 2,
+    "lengthZ": 2
+  },
+  "totalBlocks": 2,
+  "materials": [
+    {
+      "blockId": "minecraft:dirt",
+      "displayName": "Dirt",
+      "count": 1,
+      "stackSize": 64
+    },
+    {
+      "blockId": "minecraft:stone",
+      "displayName": "Stone",
+      "count": 1,
+      "stackSize": 64
+    }
+  ]
+}

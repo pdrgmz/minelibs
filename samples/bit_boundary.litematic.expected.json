@@ -1,0 +1,16 @@
+{
+  "dimensions": {
+    "widthX": 11,
+    "heightY": 1,
+    "lengthZ": 1
+  },
+  "totalBlocks": 1,
+  "materials": [
+    {
+      "blockId": "minecraft:test_block_31",
+      "displayName": "Test Block 31",
+      "count": 1,
+      "stackSize": 64
+    }
+  ]
+}

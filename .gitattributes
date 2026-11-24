@@ -1,2 +1,10 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Binarios: NUNCA normalizar (los fixtures de samples/ y los assets se corromperían)
+*.litematic binary
+*.schem binary
+*.nbt binary
+*.png binary
+*.zip binary
+*.gz binary
