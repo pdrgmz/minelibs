@@ -32,6 +32,21 @@ docker compose up -d --build
 
 La app queda en `http://localhost:3000` (o el puerto configurado en `PORT`). El usuario admin se crea automáticamente con `ADMIN_USERNAME` / `ADMIN_PASSWORD` del `.env`.
 
+### Portainer
+
+El `docker-compose.yml` no usa `env_file`, así que no hace falta crear `/data/compose/<id>/.env` en el host de Portainer. Las variables se leen por interpolación (`${VAR:-default}`) y se pueden definir en **Stacks → Environment variables**.
+
+Mínimo recomendado en Portainer:
+
+```text
+JWT_SECRET=<openssl rand -base64 48>
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=<contraseña fuerte>
+REGISTRATION_ENABLED=false
+```
+
+Si despliegas desde Git, usa `docker-compose.yml` como compose path y añade esas variables en el stack. Si despliegas pegando el compose en el editor web, pega también el contenido actualizado y define las variables antes de hacer **Deploy the stack**. El resto de variables tiene valores por defecto en el propio compose.
+
 ## Configuración
 
 Todas las variables están documentadas en [`.env.example`](.env.example). Las más importantes:
