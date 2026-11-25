@@ -30,20 +30,20 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface px-4 py-10">
-      <Card className="w-full max-w-md p-6 sm:p-8">
-        <div className="mb-8 flex items-start justify-between gap-3">
+    <div className="flex min-h-screen items-center justify-center bg-canvas px-4 py-10">
+      <Card className="w-full max-w-md overflow-hidden p-0">
+        <div className="flex items-start justify-between gap-3 border-b-2 border-ink bg-terminal p-6 text-paper">
           <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/15 text-accent"><Icon name="layers" size={22} /></span>
+            <span className="flex h-10 w-10 items-center justify-center rounded-control border border-ink bg-accent text-ink"><Icon name="layers" size={22} /></span>
             <div>
-              <h1 className="text-xl font-semibold tracking-tight text-white">{t('appName')}</h1>
-              <p className="mt-0.5 text-xs text-slate-500">{mode === 'login' ? t('loginSubtitle') : t('registerSubtitle')}</p>
+              <h1 className="font-mono text-lg font-bold uppercase tracking-[0.12em]">{t('appName')}</h1>
+              <p className="mt-1 font-sans text-xs text-paper/70">{mode === 'login' ? t('loginSubtitle') : t('registerSubtitle')}</p>
             </div>
           </div>
           <LanguageSwitcher />
         </div>
 
-        <form onSubmit={(event) => void onSubmit(event)} className="space-y-5">
+        <form onSubmit={(event) => void onSubmit(event)} className="space-y-5 p-6">
           <Field label={t('username')}>
             <input
               required
@@ -72,9 +72,9 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           </Button>
         </form>
 
-        <p className="mt-6 border-t border-slate-800 pt-5 text-center text-sm text-slate-400">
+        <p className="border-t border-dashed border-dash px-6 py-5 text-center font-sans text-sm text-muted">
           {mode === 'login' ? t('noAccount') : t('haveAccount')}{' '}
-          <Link to={mode === 'login' ? '/register' : '/login'} className="font-medium text-accent hover:underline">
+          <Link to={mode === 'login' ? '/register' : '/login'} className="font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-ink underline decoration-accent decoration-2 underline-offset-4">
             {mode === 'login' ? t('register') : t('login')}
           </Link>
         </p>

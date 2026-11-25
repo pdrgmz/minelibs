@@ -2,10 +2,30 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, downloadBlob, getAccessToken } from '../api/client';
-import { Button, Card, ConfirmModal, ErrorBanner, Field, Icon, IconButton, NoticeBanner, PageHeader, SectionHeading, inputClass } from '../components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  ConfirmModal,
+  EmptyState,
+  ErrorBanner,
+  Field,
+  Icon,
+  IconButton,
+  Metric,
+  Modal,
+  NoticeBanner,
+  PageHeader,
+  SectionHeading,
+  SegmentedProgress,
+  Tabs,
+  inputClass,
+  type IconName,
+  type TabItem,
+} from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { useSchematicParse } from '../hooks/useSchematicParse';
-import type { Material, SchematicDetail } from '../types';
+import type { Collection, Material, SchematicDetail } from '../types';
 import {
   filterMaterials,
   materialsForLayer,
@@ -13,7 +33,7 @@ import {
   materialsToText,
   presentMaterials,
 } from '../utils/materials';
-import { SchematicViewer } from '../viewer';
+import { SchematicViewer, type CaptureFn, type ViewerTheme } from '../viewer';
 
 export function SchematicDetailPage() {
   const { id = '' } = useParams();
@@ -25,20 +45,59 @@ export function SchematicDetailPage() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [layerY, setLayerY] = useState<number | null>(null);
-  const [highlight, setHighlight] = useState<string | null>(null);
+  const [pinnedHighlight, setPinnedHighlight] = useState<string | null>(null);
+  const [hoverHighlight, setHoverHighlight] = useState<string | null>(null);
   const [showGrid, setShowGrid] = useState(false);
   const [showRuler, setShowRuler] = useState(false);
   const [layerMode, setLayerMode] = useState(false);
   const [measureMode, setMeasureMode] = useState(false);
+  const [isolateLayer, setIsolateLayer] = useState(false);
+  const [contextPreset, setContextPreset] = useState<'off' | 'low' | 'high'>('low');
+  const [theme, setTheme] = useState<ViewerTheme>(() => {
+    try {
+      return localStorage.getItem('minelibs:viewer-bg') === 'light' ? 'light' : 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
+  const [autoplay, setAutoplay] = useState(false);
+  const [autoSpeed, setAutoSpeed] = useState(900);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [renderStage, setRenderStage] = useState('');
   const [materialQuery, setMaterialQuery] = useState('');
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState({ name: '', description: '', minecraftVersion: '', tags: '' });
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [draft, setDraft] = useState({ name: '', description: '', minecraftVersion: '', tags: '', collectionId: '' });
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState('');
-  const captureRef = useRef<(() => string | null) | null>(null);
+  const [inspectorTab, setInspectorTab] = useState('materials');
+  const captureRef = useRef<CaptureFn | null>(null);
   const thumbnailDone = useRef<string | null>(null);
+
+  const highlight = pinnedHighlight ?? hoverHighlight;
+  const maxLayerY = Math.max(0, (schematic?.dimensions.heightY ?? 1) - 1);
+  const contextOpacity = contextPreset === 'off'
+    ? 0
+    : contextPreset === 'high'
+      ? theme === 'dark' ? 0.45 : 0.5
+      : theme === 'dark' ? 0.28 : 0.35;
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('minelibs:viewer-bg', theme);
+    } catch {
+      // Almacenamiento opcional: el visor sigue funcionando sin persistencia.
+    }
+  }, [theme]);
+
+  useEffect(() => {
+    setPinnedHighlight(null);
+    setHoverHighlight(null);
+    setLayerY(null);
+    setMeasureMode(false);
+    setAutoplay(false);
+  }, [id]);
 
   useEffect(() => {
     void api.schematics.get(id, asAdmin).then((detail) => {
@@ -48,9 +107,14 @@ export function SchematicDetailPage() {
         description: detail.description ?? '',
         minecraftVersion: detail.minecraftVersion ?? '',
         tags: detail.tags.join(', '),
+        collectionId: detail.collectionId ?? '',
       });
     }).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : t('error')));
   }, [id, t, asAdmin]);
+
+  useEffect(() => {
+    void api.collections.list().then(setCollections).catch(() => undefined);
+  }, []);
 
   const fileUrl = schematic ? `${schematic.fileUrl}${asAdmin ? '?asAdmin=true' : ''}` : null;
   const { parsed, stage, error: parseError } = useSchematicParse(fileUrl, getAccessToken());
@@ -59,6 +123,10 @@ export function SchematicDetailPage() {
   const allMaterials = useMemo(
     () => (layerY === null ? schematic?.materials ?? [] : materialsForLayer(blocks, layerY)),
     [layerY, schematic, blocks],
+  );
+  const layerMaterialCount = useMemo(
+    () => layerY === null ? 0 : materialsForLayer(blocks, layerY).length,
+    [blocks, layerY],
   );
   const rows = useMemo(() => filterMaterials(presentMaterials(allMaterials), materialQuery), [allMaterials, materialQuery]);
   const checked = new Set(schematic?.checkedMaterials ?? []);
@@ -69,7 +137,7 @@ export function SchematicDetailPage() {
     if (!schematic || !parsed || !captureRef.current || thumbnailDone.current === schematic.id) return;
     thumbnailDone.current = schematic.id;
     const timer = window.setTimeout(() => {
-      const dataUrl = captureRef.current?.();
+      const dataUrl = captureRef.current?.('dark');
       if (!dataUrl) return;
       void fetch(dataUrl)
         .then((response) => response.blob())
@@ -114,6 +182,7 @@ export function SchematicDetailPage() {
       description: draft.description,
       minecraftVersion: draft.minecraftVersion,
       tags: draft.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
+      collectionId: draft.collectionId || null,
     } as Partial<SchematicDetail>);
     setSchematic(updated);
     setEditing(false);
@@ -134,49 +203,85 @@ export function SchematicDetailPage() {
     setSchematic(await api.schematics.patch(id, { checkedMaterials: [] } as Partial<SchematicDetail>));
   };
 
-  const onReady = useCallback((capture: () => string | null) => { captureRef.current = capture; }, []);
+  const onReady = useCallback((capture: CaptureFn) => { captureRef.current = capture; }, []);
+  const toggleTheme = useCallback(() => setTheme((value) => value === 'dark' ? 'light' : 'dark'), []);
+  const stepLayer = useCallback((delta: number) => {
+    setLayerY((value) => {
+      if (value === null) return delta > 0 ? 0 : null;
+      return Math.max(0, Math.min(maxLayerY, value + delta));
+    });
+  }, [maxLayerY]);
+
+  useEffect(() => {
+    if (!autoplay || layerY === null) return;
+    let timer = 0;
+    const advance = (): void => {
+      setLayerY((value) => (value === null ? 0 : value >= maxLayerY ? 0 : value + 1));
+      timer = window.setTimeout(advance, autoSpeed);
+    };
+    timer = window.setTimeout(advance, autoSpeed);
+    const onVisibility = (): void => {
+      window.clearTimeout(timer);
+      if (!document.hidden) timer = window.setTimeout(advance, autoSpeed);
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [autoplay, autoSpeed, layerY === null, maxLayerY]);
 
   // Atajos del modo capa y del resaltado (AGENTS.md §4.5 / docs/04 Fase 3).
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
+      const target = event.target;
+      if (target instanceof HTMLElement && target.matches('input, textarea, select, button, canvas')) return;
       if (event.key === 'Escape') {
-        setHighlight(null);
+        setPinnedHighlight(null);
+        setHoverHighlight(null);
         setMeasureMode(false);
+        setAutoplay(false);
         return;
       }
       if (layerY === null) return;
-      const maxY = Math.max(0, (schematic?.dimensions.heightY ?? 1) - 1);
-      if (event.key === 'ArrowUp') {
+      if (event.key === 'PageDown') {
         event.preventDefault();
-        setLayerY((value) => Math.min(maxY, (value ?? 0) + 1));
-      } else if (event.key === 'ArrowDown') {
+        stepLayer(1);
+      } else if (event.key === 'PageUp') {
         event.preventDefault();
-        setLayerY((value) => Math.max(0, (value ?? 0) - 1));
+        stepLayer(-1);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [layerY, schematic?.dimensions.heightY]);
+  }, [layerY, stepLayer]);
 
   if (error) return <ErrorBanner>{error}</ErrorBanner>;
-  if (!schematic) return <p className="text-slate-400">{t('loading')}</p>;
+  if (!schematic) return <p className="font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-muted">{t('loading')}</p>;
 
+  const isOwner = schematic.userId === user?.id;
   const version = schematic.minecraftVersion ?? '1.21.4';
   const toggleClass = (active: boolean) =>
-    `inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border px-3 text-sm transition-colors ${active ? 'border-accent/50 bg-accent/15 text-accent' : 'border-slate-700 bg-surface text-slate-300 hover:border-slate-600 hover:text-white'}`;
+    `inline-flex h-8 cursor-pointer items-center gap-2 rounded-control border px-2.5 font-mono text-[10px] font-bold uppercase tracking-[0.1em] transition-colors ${active ? 'border-ink bg-accent text-ink' : 'border-ink bg-canvas text-muted hover:text-ink'}`;
+
+  const inspectorTabs: TabItem[] = [
+    { id: 'materials', label: t('materials'), icon: 'box', badge: <Badge tone="accent">{rows.length}</Badge> },
+    { id: 'details', label: t('details'), icon: 'info' },
+  ];
+  if (schematic.youtubeVideoId) inspectorTabs.push({ id: 'tutorial', label: t('tutorial'), icon: 'external' });
 
   return (
     <div className="space-y-6">
       <PageHeader
         title={schematic.name}
         description={schematic.description || undefined}
-        back={<Link to="/" className="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white"><Icon name="chevronLeft" size={14} />{t('library')}</Link>}
+        back={<Link to="/" className="inline-flex items-center gap-1 font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-muted hover:text-ink"><Icon name="chevronLeft" size={14} />{t('library')}</Link>}
         actions={
           <>
             <Button icon="download" onClick={() => void api.schematics.download(id, schematic.originalFilename, asAdmin)}>{t('download')}</Button>
             <Button icon="edit" onClick={() => setEditing((value) => !value)}>{t('edit')}</Button>
-            <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/60 px-3.5 text-sm font-medium text-slate-100 transition-colors hover:border-slate-600 hover:bg-slate-800">
-              <Icon name="upload" size={16} />
+            <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-control border border-ink bg-canvas px-3 font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-ink hover:bg-surface">
+              <Icon name="upload" size={14} />
               {t('replaceFile')}
               <input type="file" accept=".litematic,.schem,.nbt" className="sr-only" onChange={(event) => {
                 const file = event.target.files?.[0];
@@ -187,11 +292,12 @@ export function SchematicDetailPage() {
           </>
         }
       />
-      <div className="flex flex-wrap items-center gap-2 text-sm text-slate-400">
-        <span className="tabular inline-flex items-center gap-1.5 rounded-lg border border-slate-800 bg-panel px-2.5 py-1"><Icon name="box" size={13} />{schematic.dimensions.widthX} × {schematic.dimensions.heightY} × {schematic.dimensions.lengthZ}</span>
-        <span className="tabular inline-flex items-center gap-1.5 rounded-lg border border-slate-800 bg-panel px-2.5 py-1">{schematic.totalBlocks} {t('blocks')}</span>
-        <span className="inline-flex items-center gap-1.5 rounded-lg border border-slate-800 bg-panel px-2.5 py-1">{schematic.minecraftVersion ?? '—'}</span>
-        <span className="truncate rounded-lg border border-slate-800 bg-panel px-2.5 py-1">{schematic.originalFilename}</span>
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Metric label={t('dimensions')} value={`${schematic.dimensions.widthX}×${schematic.dimensions.heightY}×${schematic.dimensions.lengthZ}`} tone="accent" />
+        <Metric label={t('blocks')} value={schematic.totalBlocks.toLocaleString()} />
+        <Metric label={t('minecraftVersion')} value={schematic.minecraftVersion ?? '—'} />
+        <Metric label={t('file')} value={<span className="block truncate text-sm">{schematic.originalFilename}</span>} hint={schematic.format} />
       </div>
       <NoticeBanner>{notice}</NoticeBanner>
 
@@ -201,6 +307,14 @@ export function SchematicDetailPage() {
           <form onSubmit={(event) => void save(event)} className="grid gap-4 sm:grid-cols-2">
             <Field label={t('name')}><input required value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className={inputClass} /></Field>
             <Field label={t('minecraftVersion')}><input value={draft.minecraftVersion} onChange={(e) => setDraft({ ...draft, minecraftVersion: e.target.value })} className={inputClass} /></Field>
+            {isOwner && (
+              <Field label={t('collections')} className="sm:col-span-2">
+                <select value={draft.collectionId} onChange={(e) => setDraft({ ...draft, collectionId: e.target.value })} className={inputClass}>
+                  <option value="">{t('noCollection')}</option>
+                  {collections.map((collection) => <option key={collection.id} value={collection.id}>{collection.name}</option>)}
+                </select>
+              </Field>
+            )}
             <Field label={t('description')} className="sm:col-span-2"><textarea rows={3} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} className={inputClass} /></Field>
             <Field label={t('tags')} className="sm:col-span-2"><input value={draft.tags} onChange={(e) => setDraft({ ...draft, tags: e.target.value })} className={inputClass} /></Field>
             <div className="flex flex-wrap gap-2 sm:col-span-2">
@@ -211,138 +325,270 @@ export function SchematicDetailPage() {
         </Card>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="min-w-0">
-          <SectionHeading title={t('viewer3d')} />
-          <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
+      <Card className="w-full min-w-0 p-4">
+        <SectionHeading title={t('viewer3d')} action={<Badge tone="ink">{t('layers')}</Badge>} />
+        <div className={`h-[34rem] w-full overflow-hidden rounded-control border-2 border-ink lg:h-[44rem] ${theme === 'dark' ? 'bg-terminal' : 'bg-canvas'}`}>
+          {parseError ? (
+            <div className="p-4"><ErrorBanner>{parseError}</ErrorBanner></div>
+          ) : (
+            <SchematicViewer
+              blocks={blocks}
+              version={version}
+              layerY={layerY}
+              highlight={highlight}
+              showGrid={showGrid}
+              showRuler={showRuler}
+              layerMode={layerMode}
+              measureMode={measureMode}
+              theme={theme}
+              contextOpacity={contextOpacity}
+              isolateLayer={isolateLayer}
+              token={getAccessToken()}
+              onThemeChange={toggleTheme}
+              onHelp={() => setHelpOpen(true)}
+              onLayerStep={stepLayer}
+              onProgress={setRenderStage}
+              onReady={onReady}
+            />
+          )}
+        </div>
+        {(stage || parsed || renderStage) && (
+          <p className="mt-2 font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-muted">
+            {stage ? t(stage) : renderStage ? t(renderStage) : `${blocks.length} ${t('blocks')}`}
+          </p>
+        )}
+      </Card>
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(340px,0.85fr)]">
+        <Card className="min-w-0 p-4">
+          <Tabs
+            className="mb-4"
+            value={inspectorTab}
+            onChange={setInspectorTab}
+            items={inspectorTabs}
+          />
+
+          {inspectorTab === 'materials' && (
+            <div className="space-y-4">
+              <div className="rounded-control border border-ink bg-canvas p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="label text-muted">{t('materialProgress')}</span>
+                  <span className="tabular font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-ink">{checkedCount}/{rows.length}</span>
+                </div>
+                <SegmentedProgress value={checkedCount} max={rows.length} label={t('materialProgress')} />
+              </div>
+              <input value={materialQuery} onChange={(e) => setMaterialQuery(e.target.value)} placeholder={t('filterMaterials')} aria-label={t('filterMaterials')} className={inputClass} />
+              {rows.length === 0 ? (
+                <EmptyState icon="box" title={t('noMaterials')} />
+              ) : (
+                <div className="overflow-hidden rounded-control border border-ink">
+                  <table className="w-full text-left">
+                    <thead className="bg-terminal font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-paper">
+                      <tr><th className="px-2 py-2">{t('materials')}</th><th className="px-2 py-2 text-right">{t('blocks')}</th><th className="px-2 py-2 text-right">{t('stacks')}</th><th className="px-2 py-2 text-right">{t('shulkers')}</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-dash">
+                      {rows.map((material) => (
+                        <tr
+                          key={material.blockId}
+                          className={`transition-colors ${highlight === material.blockId ? 'bg-accent/20' : 'hover:bg-canvas'}`}
+                          onMouseEnter={() => setHoverHighlight(material.blockId)}
+                          onMouseLeave={() => setHoverHighlight(null)}
+                          onFocus={() => setHoverHighlight(material.blockId)}
+                          onBlur={() => setHoverHighlight(null)}
+                        >
+                          <td className="px-2 py-2">
+                            <label className="flex cursor-pointer items-center gap-2">
+                              <input type="checkbox" checked={checked.has(material.blockId)} onChange={() => void toggleMaterial(material.blockId)} className="accent-accent" />
+                              <button type="button" onClick={() => setPinnedHighlight((current) => current === material.blockId ? null : material.blockId)} aria-pressed={pinnedHighlight === material.blockId} className="text-left font-mono text-[11px] font-bold text-ink hover:underline decoration-accent decoration-2 underline-offset-2">{material.displayName}</button>
+                            </label>
+                          </td>
+                          <td className="tabular px-2 py-2 text-right font-mono text-[11px] font-bold text-ink">{material.count}</td>
+                          <td className="tabular px-2 py-2 text-right font-mono text-[11px] font-bold text-muted">{material.stacks}</td>
+                          <td className="tabular px-2 py-2 text-right font-mono text-[11px] font-bold text-muted">{material.shulkers}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2 border-t border-dashed border-dash pt-4">
+                <Button size="sm" icon="download" onClick={exportCsv}>{t('exportCsv')}</Button>
+                <Button size="sm" icon="download" onClick={exportText}>{t('exportText')}</Button>
+                <Button size="sm" icon="refresh" onClick={() => void resetChecked()}>{t('resetChecked')}</Button>
+              </div>
+            </div>
+          )}
+
+          {inspectorTab === 'details' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <Metric label={t('dimensions')} value={`${schematic.dimensions.widthX}×${schematic.dimensions.heightY}×${schematic.dimensions.lengthZ}`} />
+                <Metric label={t('blocks')} value={schematic.totalBlocks.toLocaleString()} tone="accent" />
+              </div>
+              <dl className="divide-y divide-dash rounded-control border border-ink bg-canvas">
+                {[
+                  [t('name'), schematic.name],
+                  [t('minecraftVersion'), schematic.minecraftVersion ?? '—'],
+                  [t('file'), schematic.originalFilename],
+                  [t('tags'), schematic.tags.join(', ') || '—'],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex flex-wrap items-start justify-between gap-3 px-3 py-2">
+                    <dt className="label text-muted">{label}</dt>
+                    <dd className="min-w-0 break-all font-mono text-[11px] font-bold text-ink">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+              {schematic.description && <p className="border-l-4 border-l-lavender bg-canvas p-3 font-sans text-sm text-muted">{schematic.description}</p>}
+            </div>
+          )}
+
+          {inspectorTab === 'tutorial' && (
+            <div>
+              {schematic.youtubeVideoId ? (
+                <>
+                  <a href={schematic.youtubeUrl ?? '#'} target="_blank" rel="noreferrer" className="mb-3 inline-flex items-center gap-1 font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-ink underline decoration-accent decoration-2 underline-offset-4">
+                    YouTube <Icon name="external" size={12} />
+                  </a>
+                  <div className="aspect-video overflow-hidden rounded-control border-2 border-ink bg-terminal">
+                    <iframe
+                      className="h-full w-full"
+                      src={`https://www.youtube-nocookie.com/embed/${schematic.youtubeVideoId}`}
+                      title={t('tutorial')}
+                      allowFullScreen
+                    />
+                  </div>
+                </>
+              ) : (
+                <EmptyState icon="external" title={t('tutorial')} description={t('librarySubtitle')} />
+              )}
+            </div>
+          )}
+        </Card>
+
+        <Card className="min-w-0 p-4">
+          <SectionHeading title={t('viewerControls')} action={<Badge tone="ink">{t('viewer3d')}</Badge>} />
+
+          <div className="flex flex-wrap items-center gap-2 border-b border-dashed border-dash pb-3">
             <label className={toggleClass(layerY !== null)}>
               <input type="checkbox" checked={layerY !== null} onChange={(e) => setLayerY(e.target.checked ? Math.floor(schematic.dimensions.heightY / 2) : null)} className="sr-only" />
-              <Icon name="layers" size={14} />
+              <Icon name="layers" size={13} />
               {t('layer')}
             </label>
-            {layerY !== null && (
-              <>
-                <IconButton label={t('previousLayer')} icon="chevronLeft" variant="secondary" size="sm" disabled={layerY === 0} onClick={() => setLayerY(layerY - 1)} />
-                <input type="range" min={0} max={Math.max(0, schematic.dimensions.heightY - 1)} value={layerY} onChange={(e) => setLayerY(Number(e.target.value))} className="w-28 accent-accent sm:w-36" aria-label={t('layer')} />
-                <IconButton label={t('nextLayer')} icon="chevronRight" variant="secondary" size="sm" disabled={layerY >= schematic.dimensions.heightY - 1} onClick={() => setLayerY(layerY + 1)} />
-                <span className="tabular text-slate-400">Y = {layerY} / {Math.max(0, schematic.dimensions.heightY - 1)}</span>
-              </>
-            )}
-            {layerY === null && <span className="text-slate-400">{t('allLayers')}</span>}
             <label className={toggleClass(layerMode && layerY !== null)}>
               <input type="checkbox" disabled={layerY === null} checked={layerMode} onChange={(e) => setLayerMode(e.target.checked)} className="sr-only" />
-              <Icon name="grid" size={14} />
+              <Icon name="grid" size={13} />
               {t('layerMode')}
             </label>
             <label className={toggleClass(showGrid)}>
               <input type="checkbox" checked={showGrid} onChange={(e) => setShowGrid(e.target.checked)} className="sr-only" />
-              <Icon name="grid" size={14} />
+              <Icon name="grid" size={13} />
               {t('showGrid')}
             </label>
             <label className={toggleClass(showRuler)}>
               <input type="checkbox" checked={showRuler} onChange={(e) => setShowRuler(e.target.checked)} className="sr-only" />
-              <Icon name="ruler" size={14} />
+              <Icon name="ruler" size={13} />
               {t('showRuler')}
             </label>
-            <Button size="sm" icon="ruler" variant={measureMode ? 'primary' : 'secondary'} disabled={layerY === null} onClick={() => setMeasureMode((value) => !value)}>{t('measure')}</Button>
+            <Button size="sm" variant={measureMode ? 'primary' : 'secondary'} icon="ruler" disabled={layerY === null} onClick={() => setMeasureMode((value) => !value)}>{t('measure')}</Button>
           </div>
-          <Field label={t('highlight')} className="mb-4">
-            <select value={highlight ?? ''} onChange={(e) => setHighlight(e.target.value || null)} className={inputClass}>
-              <option value="">{t('all')}</option>
-              {schematic.materials.map((material: Material) => (
-                <option key={material.blockId} value={material.blockId}>{material.displayName}</option>
-              ))}
-            </select>
-          </Field>
-          <div className="h-[26rem] overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
-            {parseError ? (
-              <ErrorBanner>{parseError}</ErrorBanner>
-            ) : (
-              <SchematicViewer
-                blocks={blocks}
-                version={version}
-                layerY={layerY}
-                highlight={highlight}
-                showGrid={showGrid}
-                showRuler={showRuler}
-                layerMode={layerMode}
-                measureMode={measureMode}
-                token={getAccessToken()}
-                onProgress={setRenderStage}
-                onReady={onReady}
-              />
-            )}
-          </div>
-          {(stage || parsed || renderStage) && (
-            <p className="mt-2 text-xs text-slate-500">
-              {stage ? t(stage) : renderStage ? t(renderStage) : `${blocks.length} ${t('blocks')}`}
-            </p>
-          )}
-        </Card>
 
-        <div className="min-w-0 space-y-6">
-          {schematic.youtubeVideoId && (
-            <Card>
-              <SectionHeading title={t('tutorial')} action={<a href={schematic.youtubeUrl ?? '#'} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-accent hover:underline">YouTube<Icon name="external" size={13} /></a>} />
-              <div className="aspect-video overflow-hidden rounded-lg">
-                <iframe
-                  className="h-full w-full"
-                  src={`https://www.youtube-nocookie.com/embed/${schematic.youtubeVideoId}`}
-                  title={t('tutorial')}
-                  allowFullScreen
-                />
-              </div>
-            </Card>
-          )}
-
-          <Card>
-            <SectionHeading
-              title={t('materials')}
-              action={<span className="tabular text-sm text-slate-400">{checkedCount}/{rows.length} {t('materialProgress')}</span>}
+          <div className="mt-3 flex flex-wrap items-center gap-3 rounded-control border border-ink bg-canvas p-3">
+            <span className="label text-muted">{t('layers')}</span>
+            <IconButton label={t('previousLayer')} icon="chevronLeft" variant="secondary" size="sm" disabled={layerY === null || layerY === 0} onClick={() => stepLayer(-1)} />
+            <input
+              type="range"
+              min={0}
+              max={maxLayerY}
+              value={layerY ?? 0}
+              disabled={layerY === null}
+              onChange={(e) => setLayerY(Number(e.target.value))}
+              className="h-2 min-w-[120px] flex-1 accent-accent disabled:opacity-40"
+              aria-label={t('layer')}
             />
-            <div className="mb-4 h-2 overflow-hidden rounded-lg bg-slate-700" role="progressbar" aria-valuenow={checkedCount} aria-valuemin={0} aria-valuemax={rows.length}>
-              <div className="h-full bg-accent transition-[width] duration-200" style={{ width: rows.length ? `${(checkedCount / rows.length) * 100}%` : '0%' }} />
-            </div>
-            <input value={materialQuery} onChange={(e) => setMaterialQuery(e.target.value)} placeholder={t('filterMaterials')} aria-label={t('filterMaterials')} className={`${inputClass} mb-3`} />
-            {rows.length === 0 ? (
-              <p className="text-sm text-slate-500">{t('noMaterials')}</p>
-            ) : (
-              <div className="overflow-hidden rounded-lg border border-slate-800">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-surface/70 text-xs uppercase tracking-wide text-slate-500">
-                    <tr><th className="px-3 py-2 font-medium">{t('materials')}</th><th className="px-3 py-2 text-right font-medium">{t('blocks')}</th><th className="px-3 py-2 text-right font-medium">{t('stacks')}</th><th className="px-3 py-2 text-right font-medium">{t('shulkers')}</th></tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800">
-                    {rows.map((material) => (
-                      <tr
-                        key={material.blockId}
-                        className={`transition-colors ${highlight === material.blockId ? 'bg-accent/10' : 'hover:bg-slate-800/40'}`}
-                        onMouseEnter={() => setHighlight(material.blockId)}
-                        onMouseLeave={() => setHighlight(null)}
-                      >
-                        <td className="px-3 py-2">
-                          <label className="flex cursor-pointer items-center gap-2">
-                            <input type="checkbox" checked={checked.has(material.blockId)} onChange={() => void toggleMaterial(material.blockId)} className="accent-accent" />
-                            <button type="button" onClick={() => setHighlight((current) => current === material.blockId ? null : material.blockId)} className="text-left text-slate-100 hover:text-accent">{material.displayName}</button>
-                          </label>
-                        </td>
-                        <td className="tabular px-3 py-2 text-right text-slate-200">{material.count}</td>
-                        <td className="tabular px-3 py-2 text-right text-slate-200">{material.stacks}</td>
-                        <td className="tabular px-3 py-2 text-right text-slate-200">{material.shulkers}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            <IconButton label={t('nextLayer')} icon="chevronRight" variant="secondary" size="sm" disabled={layerY === null || layerY >= maxLayerY} onClick={() => stepLayer(1)} />
+            <span className="tabular font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-ink">
+              {layerY === null ? t('allLayers') : `Y ${layerY} / ${maxLayerY}`}
+            </span>
+            <Button size="sm" variant={autoplay ? 'primary' : 'secondary'} icon={autoplay ? 'pause' : 'play'} disabled={layerY === null} onClick={() => setAutoplay((value) => !value)}>
+              {autoplay ? t('stopAutoplay') : t('autoplay')}
+            </Button>
+            <label className="flex items-center gap-1">
+              <span className="label text-muted">{t('autoSpeed')}</span>
+              <select
+                value={autoSpeed}
+                onChange={(e) => setAutoSpeed(Number(e.target.value))}
+                className="h-8 rounded-control border border-ink bg-paper px-2 font-mono text-[10px] font-bold text-ink"
+                aria-label={t('autoSpeed')}
+              >
+                <option value={1400}>0.7×</option>
+                <option value={900}>1×</option>
+                <option value={450}>2×</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-control border border-dashed border-dash bg-canvas p-2">
+            <span className="label text-muted">{t('context')}</span>
+            {(['off', 'low', 'high'] as const).map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                aria-pressed={contextPreset === preset}
+                onClick={() => setContextPreset(preset)}
+                className={`h-7 rounded-control border border-ink px-2 font-mono text-[10px] font-bold uppercase tracking-[0.08em] ${contextPreset === preset ? 'bg-accent text-ink' : 'bg-canvas text-muted hover:text-ink'}`}
+              >
+                {preset === 'off' ? t('contextOff') : preset === 'low' ? t('contextLow') : t('contextHigh')}
+              </button>
+            ))}
+            <label className={toggleClass(isolateLayer)}>
+              <input type="checkbox" checked={isolateLayer} onChange={(e) => setIsolateLayer(e.target.checked)} className="sr-only" />
+              <Icon name="layers" size={13} />
+              {t('isolate')}
+            </label>
+            {layerY !== null && (
+              <span className="tabular font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted">
+                {t('layerMaterials')}: {layerMaterialCount}
+              </span>
             )}
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button size="sm" icon="download" onClick={exportCsv}>{t('exportCsv')}</Button>
-              <Button size="sm" icon="download" onClick={exportText}>{t('exportText')}</Button>
-              <Button size="sm" icon="refresh" onClick={() => void resetChecked()}>{t('resetChecked')}</Button>
-            </div>
-          </Card>
-        </div>
+          </div>
+
+          <div className="mt-3">
+            <Field label={t('highlight')} hint={pinnedHighlight ? t('helpHighlight') : undefined}>
+              <select value={pinnedHighlight ?? ''} onChange={(e) => setPinnedHighlight(e.target.value || null)} className={inputClass}>
+                <option value="">{t('all')}</option>
+                {schematic.materials.map((material: Material) => (
+                  <option key={material.blockId} value={material.blockId}>{material.displayName}</option>
+                ))}
+              </select>
+            </Field>
+          </div>
+        </Card>
       </div>
+
+      <Modal
+        open={helpOpen}
+        title={t('helpTitle')}
+        description={t('helpIntro')}
+        icon="help"
+        closeLabel={t('close')}
+        onClose={() => setHelpOpen(false)}
+      >
+        <dl className="divide-y divide-dash rounded-control border border-ink bg-canvas">
+          {([
+            [t('helpOrbit'), 'grid'],
+            [t('helpPan'), 'fit'],
+            [t('helpLayers'), 'layers'],
+            [t('helpHighlight'), 'target'],
+            [t('helpMeasure'), 'ruler'],
+            [t('helpTheme'), 'sun'],
+          ] as Array<[string, IconName]>).map(([text, icon]) => (
+            <div key={text} className="flex items-start gap-3 px-3 py-3">
+              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-control border border-ink bg-accent/20 text-ink"><Icon name={icon} size={15} /></span>
+              <dd className="font-mono text-[11px] font-bold uppercase tracking-[0.06em] text-ink">{text}</dd>
+            </div>
+          ))}
+        </dl>
+      </Modal>
 
       <ConfirmModal
         open={deleteOpen}

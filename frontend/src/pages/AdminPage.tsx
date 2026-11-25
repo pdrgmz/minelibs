@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
-import { Button, Card, ConfirmModal, EmptyState, ErrorBanner, Icon, NoticeBanner, PageHeader, PromptModal, SectionHeading, inputClass } from '../components/ui';
+import { Badge, Button, Card, ConfirmModal, EmptyState, ErrorBanner, Icon, NoticeBanner, PageHeader, PromptModal, SectionHeading, Tabs, inputClass } from '../components/ui';
 import type { AdminSchematic, Page, User } from '../types';
 
 export function AdminPage() {
@@ -19,6 +19,7 @@ export function AdminPage() {
   const [passwordDraft, setPasswordDraft] = useState('');
   const [dialogError, setDialogError] = useState('');
   const [dialogBusy, setDialogBusy] = useState(false);
+  const [tab, setTab] = useState<'users' | 'library'>('users');
 
   const load = useCallback(() => {
     void Promise.all([api.admin.users(), api.admin.schematics()])
@@ -119,62 +120,77 @@ export function AdminPage() {
       <ErrorBanner>{error}</ErrorBanner>
       <NoticeBanner>{notice || busyNotice}</NoticeBanner>
 
-      <Card>
-        <SectionHeading title={`${t('users')} (${users?.total ?? 0})`} />
-        <div className="mb-5 overflow-hidden rounded-lg border border-slate-800">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-surface/70 text-xs uppercase tracking-wide text-slate-500">
-              <tr><th className="px-3 py-2 font-medium">{t('username')}</th><th className="px-3 py-2 font-medium">{t('role')}</th><th className="px-3 py-2 text-right font-medium">{t('actions')}</th></tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800">
-              {users?.items.map((user) => (
-                <tr key={user.id} className="hover:bg-slate-800/40">
-                  <td className="px-3 py-2 text-slate-100">{user.username}</td>
-                  <td className="px-3 py-2"><span className={`rounded-lg px-2 py-0.5 text-xs ${user.role === 'ADMIN' ? 'bg-accent/15 text-accent' : 'bg-slate-800 text-slate-300'}`}>{user.role}</span></td>
-                  <td className="px-3 py-2">
-                    <div className="flex justify-end gap-1">
-                      <Button size="sm" icon="shield" onClick={() => void changeRole(user)}>{t('changeRole')}</Button>
-                      <Button size="sm" icon="key" onClick={() => openResetPassword(user)}>{t('resetPassword')}</Button>
-                      <Button size="sm" variant="danger" icon="trash" onClick={() => openDeleteUser(user)}>{t('deleteUser')}</Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {users && users.items.length === 0 && <EmptyState icon="user" title={t('noUsers')} />}
-        </div>
-        <form onSubmit={(event) => void onCreateUser(event)} className="grid gap-3 sm:grid-cols-[1fr_1fr_auto_auto]">
-          <input required placeholder={t('username')} aria-label={t('username')} value={username} onChange={(event) => setUsername(event.target.value)} className={inputClass} />
-          <input required type="password" minLength={10} placeholder={t('password')} aria-label={t('password')} value={password} onChange={(event) => setPassword(event.target.value)} className={inputClass} />
-          <select aria-label={t('role')} value={role} onChange={(event) => setRole(event.target.value as 'USER' | 'ADMIN')} className={inputClass}>
-            <option value="USER">USER</option>
-            <option value="ADMIN">ADMIN</option>
-          </select>
-          <Button type="submit" variant="primary" icon="plus">{t('createUser')}</Button>
-        </form>
-      </Card>
+      <Tabs
+        value={tab}
+        onChange={(id) => setTab(id as 'users' | 'library')}
+        items={[
+          { id: 'users', label: `${t('users')} (${users?.total ?? 0})`, icon: 'user' },
+          { id: 'library', label: `${t('library')} (${schematics?.total ?? 0})`, icon: 'box' },
+        ]}
+      />
 
-      <Card>
-        <SectionHeading
-          title={`${t('library')} (${schematics?.total ?? 0})`}
-          action={<Button icon="refresh" loading={Boolean(busyNotice)} onClick={() => void reparse()}>{t('reparse')}</Button>}
-        />
-        <div className="overflow-hidden rounded-lg border border-slate-800">
-          <ul className="divide-y divide-slate-800 text-sm">
-            {schematics?.items.map((schematic) => (
-              <li key={schematic.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 hover:bg-slate-800/40">
-                <Link to={`/schematic/${schematic.id}`} className="min-w-0 truncate text-slate-100 hover:text-accent">{schematic.name}</Link>
-                <span className="tabular flex items-center gap-2 text-xs text-slate-400">
-                  {schematic.format} · {schematic.userId.slice(0, 8)} · {schematic.widthX}×{schematic.heightY}×{schematic.lengthZ}
-                  <Link to={`/schematic/${schematic.id}`} className="inline-flex items-center gap-1 font-medium text-accent hover:underline">{t('edit')}<Icon name="external" size={12} /></Link>
-                </span>
-              </li>
-            ))}
-          </ul>
-          {schematics && schematics.items.length === 0 && <EmptyState icon="box" title={t('emptyLibrary')} />}
-        </div>
-      </Card>
+      {tab === 'users' && (
+        <Card>
+          <SectionHeading title={t('users')} />
+          <div className="overflow-hidden rounded-control border border-ink">
+            <table className="w-full text-left">
+              <thead className="bg-terminal font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-paper">
+                <tr><th className="px-3 py-2">{t('username')}</th><th className="px-3 py-2">{t('role')}</th><th className="px-3 py-2 text-right">{t('actions')}</th></tr>
+              </thead>
+              <tbody className="divide-y divide-dash">
+                {users?.items.map((user) => (
+                  <tr key={user.id} className="hover:bg-canvas">
+                    <td className="px-3 py-2 font-mono text-[13px] font-bold uppercase tracking-[0.06em] text-ink">{user.username}</td>
+                    <td className="px-3 py-2"><Badge tone={user.role === 'ADMIN' ? 'accent' : 'ink'}>{user.role}</Badge></td>
+                    <td className="px-3 py-2">
+                      <div className="flex flex-wrap justify-end gap-1">
+                        <Button size="sm" icon="shield" onClick={() => void changeRole(user)}>{t('changeRole')}</Button>
+                        <Button size="sm" icon="key" onClick={() => openResetPassword(user)}>{t('resetPassword')}</Button>
+                        <Button size="sm" variant="danger" icon="trash" onClick={() => openDeleteUser(user)}>{t('deleteUser')}</Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {users && users.items.length === 0 && <EmptyState icon="user" title={t('noUsers')} />}
+          </div>
+          <form onSubmit={(event) => void onCreateUser(event)} className="mt-5 grid gap-3 border-t border-dashed border-dash pt-5 sm:grid-cols-[1fr_1fr_auto_auto]">
+            <input required placeholder={t('username')} aria-label={t('username')} value={username} onChange={(event) => setUsername(event.target.value)} className={inputClass} />
+            <input required type="password" minLength={10} placeholder={t('password')} aria-label={t('password')} value={password} onChange={(event) => setPassword(event.target.value)} className={inputClass} />
+            <select aria-label={t('role')} value={role} onChange={(event) => setRole(event.target.value as 'USER' | 'ADMIN')} className={inputClass}>
+              <option value="USER">USER</option>
+              <option value="ADMIN">ADMIN</option>
+            </select>
+            <Button type="submit" variant="primary" icon="plus">{t('createUser')}</Button>
+          </form>
+        </Card>
+      )}
+
+      {tab === 'library' && (
+        <Card>
+          <SectionHeading
+            title={t('library')}
+            action={<Button icon="refresh" loading={Boolean(busyNotice)} onClick={() => void reparse()}>{t('reparse')}</Button>}
+          />
+          <div className="overflow-hidden rounded-control border border-ink">
+            <ul className="divide-y divide-dash">
+              {schematics?.items.map((schematic) => (
+                <li key={schematic.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 hover:bg-canvas">
+                  <Link to={`/schematic/${schematic.id}`} className="min-w-0 truncate font-mono text-[13px] font-bold uppercase tracking-[0.06em] text-ink hover:underline decoration-accent decoration-2 underline-offset-4">{schematic.name}</Link>
+                  <span className="tabular flex flex-wrap items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted">
+                    <Badge tone="ink">{schematic.format}</Badge>
+                    <span>{schematic.userId.slice(0, 8)}</span>
+                    <span>{schematic.widthX}×{schematic.heightY}×{schematic.lengthZ}</span>
+                    <Link to={`/schematic/${schematic.id}`} className="inline-flex items-center gap-1 text-ink underline decoration-accent decoration-2 underline-offset-4">{t('edit')}<Icon name="external" size={12} /></Link>
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {schematics && schematics.items.length === 0 && <EmptyState icon="box" title={t('emptyLibrary')} />}
+          </div>
+        </Card>
+      )}
 
       <PromptModal
         open={dialog?.kind === 'resetPassword'}

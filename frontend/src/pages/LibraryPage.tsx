@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { AuthenticatedImage } from '../components/AuthenticatedImage';
-import { Button, Card, ConfirmModal, EmptyState, ErrorBanner, Icon, IconButton, SkeletonCard, buttonClass, inputClass } from '../components/ui';
+import { Badge, Button, Card, ConfirmModal, EmptyState, ErrorBanner, Icon, IconButton, Metric, SkeletonCard, buttonClass, inputClass } from '../components/ui';
 import type { Collection, Page, SchematicSummary } from '../types';
 
 interface Filters {
@@ -115,15 +115,19 @@ export function LibraryPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-800 pb-5">
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-ink pb-5">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">{t('library')}</h1>
-          <p className="mt-1 text-sm text-slate-400">{t('librarySubtitle')}</p>
+          <div className="label mb-2 text-muted">Minelibs / {t('library')}</div>
+          <h1 className="font-mono text-2xl font-bold uppercase tracking-[0.08em] text-ink sm:text-3xl">{t('library')}</h1>
+          <p className="mt-2 max-w-2xl font-sans text-sm text-muted">{t('librarySubtitle')}</p>
         </div>
-        <Link to="/new" className={buttonClass('primary')}>
-          <Icon name="plus" />
-          {t('newSchematic')}
-        </Link>
+        <div className="flex items-stretch gap-2">
+          <Metric label={t('blocks')} value={data?.total ?? '—'} hint={t('library')} className="min-w-[104px]" />
+          <Link to="/new" className={buttonClass('primary')}>
+            <Icon name="plus" />
+            {t('newSchematic')}
+          </Link>
+        </div>
       </div>
 
       <Card className="p-4">
@@ -131,7 +135,7 @@ export function LibraryPage() {
           <input name="q" defaultValue={filters.q} placeholder={t('search')} aria-label={t('search')} className={inputClass} />
           <input aria-label={t('tags')} placeholder={t('tags')} value={filters.tag} onChange={(event) => setFilters({ ...filters, tag: event.target.value, page: 1 })} className={inputClass} />
           <input aria-label={t('minecraftVersion')} placeholder={t('minecraftVersion')} value={filters.version} onChange={(event) => setFilters({ ...filters, version: event.target.value, page: 1 })} className={inputClass} />
-          <Button type="submit" variant="secondary" icon="search">{t('search')}</Button>
+          <Button type="submit" variant="primary" icon="search">{t('search')}</Button>
           <select aria-label={t('collections')} value={filters.collectionId} onChange={(event) => setFilters({ ...filters, collectionId: event.target.value, page: 1 })} className={inputClass}>
             <option value="">{t('collections')}: {t('all')}</option>
             {collections.map((collection) => <option key={collection.id} value={collection.id}>{collection.name}</option>)}
@@ -142,18 +146,18 @@ export function LibraryPage() {
             <option value="name">{t('sortName')}</option>
             <option value="totalBlocks">{t('sortBlocks')}</option>
           </select>
-          <label className="flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-slate-800 bg-surface px-3 text-sm text-slate-300 md:col-span-2">
+          <label className="flex h-10 cursor-pointer items-center gap-2 rounded-control border border-ink bg-canvas px-3 font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-ink md:col-span-2">
             <input type="checkbox" checked={filters.favorite === 'true'} onChange={(event) => setFilters({ ...filters, favorite: event.target.checked ? 'true' : '', page: 1 })} className="accent-accent" />
             {t('favorites')}
           </label>
         </form>
 
-        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-800 pt-4 text-sm">
-          <span className="font-medium text-slate-400">{t('collections')}</span>
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-dashed border-dash pt-4">
+          <span className="label text-muted">{t('collections')}</span>
           {collections.map((collection) => (
-            <span key={collection.id} className="inline-flex items-center gap-1 rounded-lg bg-slate-800/70 py-1 pl-2.5 pr-1 text-xs text-slate-200">
+            <span key={collection.id} className="inline-flex items-center gap-1 rounded-full border border-ink bg-ink py-0.5 pl-3 pr-1 font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-paper">
               {collection.name}
-              <IconButton label={`${t('delete')} ${collection.name}`} icon="close" size="sm" onClick={() => openRemoveCollection(collection)} className="text-slate-500 hover:text-red-300" />
+              <IconButton label={`${t('delete')} ${collection.name}`} icon="close" variant="onDark" size="xs" onClick={() => openRemoveCollection(collection)} />
             </span>
           ))}
           <Button variant="ghost" size="sm" icon="plus" onClick={() => setShowCollectionForm((value) => !value)}>{t('createCollection')}</Button>
@@ -195,34 +199,39 @@ export function LibraryPage() {
       {data && data.items.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {data.items.map((schematic) => (
-            <article key={schematic.id} className="overflow-hidden rounded-2xl border border-slate-800 bg-panel transition-colors duration-100 hover:border-slate-700">
-              <Link to={`/schematic/${schematic.id}`} className="block h-36 bg-surface" aria-label={schematic.name}>
+            <article key={schematic.id} className="overflow-hidden rounded-surface border border-ink bg-surface transition-colors duration-100 hover:border-muted">
+              <Link to={`/schematic/${schematic.id}`} className="block h-36 overflow-hidden border-b border-ink bg-terminal" aria-label={schematic.name}>
                 {schematic.thumbnailUrl ? (
                   <AuthenticatedImage src={`/schematics/${schematic.id}/thumbnail`} alt={schematic.name} className="h-full w-full object-cover" fallback={schematic.format} />
                 ) : (
-                  <span className="flex h-full items-center justify-center text-xs uppercase tracking-wide text-slate-500">{schematic.format}</span>
+                  <span className="flex h-full items-center justify-center font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-paper/60">{schematic.format}</span>
                 )}
               </Link>
               <div className="space-y-3 p-4">
                 <div className="flex items-start justify-between gap-2">
-                  <Link to={`/schematic/${schematic.id}`} className="min-w-0 truncate font-medium text-white hover:text-accent">{schematic.name}</Link>
+                  <Link to={`/schematic/${schematic.id}`} className="min-w-0 truncate font-mono text-sm font-bold uppercase tracking-[0.06em] text-ink hover:underline decoration-accent decoration-2 underline-offset-4">{schematic.name}</Link>
                   <IconButton
                     label={t('favorite')}
                     icon="star"
-                    variant="ghost"
+                    variant="secondary"
                     size="sm"
                     onClick={() => void toggleFavorite(schematic)}
-                    className={schematic.isFavorite ? 'text-accent [&_path]:fill-current' : 'text-slate-500 hover:text-accent'}
+                    className={schematic.isFavorite ? 'bg-accent text-ink [&_path]:fill-current' : 'text-muted'}
                   />
                 </div>
-                <p className="tabular text-xs text-slate-400">
-                  {schematic.dimensions.widthX} × {schematic.dimensions.heightY} × {schematic.dimensions.lengthZ} · {schematic.totalBlocks} {t('blocks')}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Badge tone="ink">{schematic.format}</Badge>
+                  <Badge tone="lavender">{schematic.minecraftVersion || '—'}</Badge>
+                  {schematic.youtubeVideoId && <Badge tone="accent"><Icon name="external" size={10} />YouTube</Badge>}
+                </div>
+                <p className="tabular border-t border-dashed border-dash pt-3 font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-muted">
+                  {schematic.dimensions.widthX}×{schematic.dimensions.heightY}×{schematic.dimensions.lengthZ} · {schematic.totalBlocks} {t('blocks')}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
-                  {schematic.tags.map((tag) => <span key={tag} className="rounded-lg bg-slate-800/70 px-2 py-0.5 text-xs text-slate-300">{tag}</span>)}
-                  {schematic.youtubeVideoId && <span className="inline-flex items-center gap-1 rounded-lg bg-slate-800/70 px-2 py-0.5 text-xs text-slate-300"><Icon name="external" size={12} />YouTube</span>}
+                  {schematic.tags.slice(0, 3).map((tag) => <Badge key={tag} tone="ink">{tag}</Badge>)}
+                  {schematic.tags.length > 3 && <Badge tone="lavender">+{schematic.tags.length - 3}</Badge>}
                 </div>
-                <Button variant="ghost" size="sm" icon="trash" onClick={() => openRemove(schematic)} className="text-red-300 hover:text-red-200 hover:bg-red-950/40">
+                <Button variant="ghost" size="sm" icon="trash" onClick={() => openRemove(schematic)} className="text-terracotta hover:bg-terracotta/10">
                   {t('delete')}
                 </Button>
               </div>
@@ -232,7 +241,7 @@ export function LibraryPage() {
       )}
 
       {data && totalPages > 1 && (
-        <div className="flex items-center justify-center gap-3 text-sm text-slate-400">
+        <div className="flex items-center justify-center gap-3 font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-muted">
           <IconButton label={t('previousPage')} icon="chevronLeft" variant="secondary" size="sm" disabled={filters.page === 1} onClick={() => setFilters({ ...filters, page: filters.page - 1 })} />
           <span className="tabular">{t('page')} {filters.page} {t('of')} {totalPages}</span>
           <IconButton label={t('nextPage')} icon="chevronRight" variant="secondary" size="sm" disabled={filters.page >= totalPages} onClick={() => setFilters({ ...filters, page: filters.page + 1 })} />

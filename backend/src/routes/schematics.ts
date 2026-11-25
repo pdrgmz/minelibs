@@ -105,6 +105,7 @@ function listItem(row: NonNullable<SchematicRow>) {
 function detail(row: NonNullable<SchematicRow>) {
   return {
     ...listItem(row),
+    userId: row.userId,
     description: row.description,
     youtubeUrl: row.youtubeUrl,
     edition: row.edition,

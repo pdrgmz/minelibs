@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
-import { Button, Card, ErrorBanner, Field, Icon, PageHeader, PromptModal, inputClass } from '../components/ui';
+import { Badge, Button, Card, ErrorBanner, Field, Icon, PageHeader, PromptModal, SectionHeading, inputClass } from '../components/ui';
 import type { Collection, SchematicDetail } from '../types';
 
 export function NewSchematicPage() {
@@ -91,63 +91,74 @@ export function NewSchematicPage() {
       <PageHeader
         title={t('newSchematic')}
         description={t('newSchematicSubtitle')}
-        back={<Link to="/" className="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white"><Icon name="chevronLeft" size={14} />{t('library')}</Link>}
+        back={<Link to="/" className="inline-flex items-center gap-1 font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-muted hover:text-ink"><Icon name="chevronLeft" size={14} />{t('library')}</Link>}
       />
       <Card>
-        <form onSubmit={(event) => void onSubmit(event)} className="space-y-5">
+        <form onSubmit={(event) => void onSubmit(event)} className="space-y-6">
           <div>
-            <span className="mb-1.5 block text-sm font-medium text-slate-200">{t('file')}</span>
-            <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-slate-700 bg-surface/50 p-4 text-sm hover:border-accent/60">
-              <Icon name="upload" size={20} className="text-accent" />
+            <SectionHeading title={t('file')} />
+            <label className="flex cursor-pointer flex-wrap items-center gap-4 rounded-surface border-2 border-dashed border-ink bg-canvas p-6 transition-colors hover:bg-surface">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-control border border-ink bg-terminal text-accent"><Icon name="upload" size={22} /></span>
               <span className="min-w-0 flex-1">
-                <span className="block font-medium text-slate-100">{file ? file.name : t('file')}</span>
-                <span className="mt-0.5 block text-xs text-slate-500">.litematic · .schem · .nbt</span>
+                <span className="block truncate font-mono text-sm font-bold uppercase tracking-[0.08em] text-ink">{file ? file.name : t('file')}</span>
+                <span className="mt-1 block font-sans text-xs text-muted">
+                  {file ? `${Math.max(1, Math.round(file.size / 1024))} KB` : '.litematic · .schem · .nbt'}
+                </span>
               </span>
+              <Badge tone={file ? 'accent' : 'ink'}>{file ? t('saved') : t('upload')}</Badge>
               <input required type="file" accept=".litematic,.schem,.nbt" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="sr-only" />
-              <span className="rounded-lg border border-slate-700 px-2.5 py-1 text-xs text-slate-300">{t('upload')}</span>
             </label>
           </div>
-          <Field label={t('name')}>
-            <input required maxLength={150} value={name} onChange={(event) => setName(event.target.value)} className={inputClass} />
-          </Field>
-          <Field label={t('description')}>
-            <textarea rows={3} value={description} onChange={(event) => setDescription(event.target.value)} className={inputClass} />
-          </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={t('youtubeUrl')}>
-              <input type="url" value={youtubeUrl} onChange={(event) => setYoutubeUrl(event.target.value)} placeholder="https://youtu.be/..." className={inputClass} />
-            </Field>
-            <Field label={t('minecraftVersion')}>
-              <input maxLength={32} value={minecraftVersion} onChange={(event) => setMinecraftVersion(event.target.value)} placeholder="1.21.4" className={inputClass} />
-            </Field>
+
+          <div>
+            <SectionHeading title={t('details')} />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label={t('name')} className="sm:col-span-2">
+                <input required maxLength={150} value={name} onChange={(event) => setName(event.target.value)} className={inputClass} />
+              </Field>
+              <Field label={t('description')} className="sm:col-span-2">
+                <textarea rows={3} value={description} onChange={(event) => setDescription(event.target.value)} className={inputClass} />
+              </Field>
+              <Field label={t('youtubeUrl')}>
+                <input type="url" value={youtubeUrl} onChange={(event) => setYoutubeUrl(event.target.value)} placeholder="https://youtu.be/..." className={inputClass} />
+              </Field>
+              <Field label={t('minecraftVersion')}>
+                <input maxLength={32} value={minecraftVersion} onChange={(event) => setMinecraftVersion(event.target.value)} placeholder="1.21.4" className={inputClass} />
+              </Field>
+              <Field label={t('tags')} hint={t('tagsHint')} className="sm:col-span-2">
+                <input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="hierro, redstone" className={inputClass} />
+              </Field>
+            </div>
           </div>
-          <Field label={t('tags')} hint={t('tagsHint')}>
-            <input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="hierro, redstone" className={inputClass} />
-          </Field>
-          <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
-            <Field label={t('collections')}>
-              <select value={collectionId} onChange={(event) => setCollectionId(event.target.value)} className={inputClass}>
-                <option value="">—</option>
-                {collections.map((collection) => <option key={collection.id} value={collection.id}>{collection.name}</option>)}
-              </select>
-            </Field>
-            <Button icon="plus" onClick={openCreateCollection}>+ {t('createCollection')}</Button>
-          </div>
-          <div className="flex flex-wrap gap-4">
-            <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-200">
-              <input type="checkbox" checked={isFavorite} onChange={(event) => setIsFavorite(event.target.checked)} className="accent-accent" />
-              {t('favorite')}
-            </label>
-            {force && (
-              <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-amber-800/70 bg-amber-950/30 px-3 py-2 text-sm text-amber-200">
-                <input type="checkbox" checked={force} onChange={(event) => setForce(event.target.checked)} className="accent-amber-400" />
-                {t('uploadAnyway')}
+
+          <div>
+            <SectionHeading title={t('collections')} />
+            <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
+              <Field label={t('collections')}>
+                <select value={collectionId} onChange={(event) => setCollectionId(event.target.value)} className={inputClass}>
+                  <option value="">—</option>
+                  {collections.map((collection) => <option key={collection.id} value={collection.id}>{collection.name}</option>)}
+                </select>
+              </Field>
+              <Button icon="plus" onClick={openCreateCollection}>+ {t('createCollection')}</Button>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-4">
+              <label className="flex cursor-pointer items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-ink">
+                <input type="checkbox" checked={isFavorite} onChange={(event) => setIsFavorite(event.target.checked)} className="accent-accent" />
+                {t('favorite')}
               </label>
-            )}
+              {force && (
+                <label className="flex cursor-pointer items-center gap-2 rounded-control border border-ink bg-amber/15 px-3 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-ink">
+                  <input type="checkbox" checked={force} onChange={(event) => setForce(event.target.checked)} className="accent-amber" />
+                  {t('uploadAnyway')}
+                </label>
+              )}
+            </div>
           </div>
+
           <ErrorBanner>{error}</ErrorBanner>
-          <div className="flex flex-wrap justify-end gap-2 border-t border-slate-800 pt-4">
-            <Button as-link to="/" icon="close">{t('cancel')}</Button>
+          <div className="flex flex-wrap justify-end gap-2 border-t-2 border-ink pt-4">
+            <Button asLink to="/" icon="close">{t('cancel')}</Button>
             <Button type="submit" variant="primary" icon="check" loading={busy} disabled={!file}>{t('save')}</Button>
           </div>
         </form>

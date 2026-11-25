@@ -43,6 +43,7 @@ export interface SchematicSummary {
 }
 
 export interface SchematicDetail extends SchematicSummary {
+  userId: string;
   description: string | null;
   youtubeUrl: string | null;
   edition: string;

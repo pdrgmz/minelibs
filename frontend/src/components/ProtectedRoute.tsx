@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 
 export function ProtectedRoute({ children, adminOnly = false }: { children: ReactNode; adminOnly?: boolean }) {
   const { user, loading } = useAuth();
-  if (loading) return <div className="text-slate-400">Cargando…</div>;
+  if (loading) return <div className="label text-muted">Cargando…</div>;
   if (!user) return <Navigate to="/login" replace />;
   if (adminOnly && user.role !== 'ADMIN') return <Navigate to="/" replace />;
   return <>{children}</>;

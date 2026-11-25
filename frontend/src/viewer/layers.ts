@@ -23,6 +23,57 @@ export function filterBlocks(
   });
 }
 
+/** Clave estable de una celda para búsquedas O(1) durante el raycast. */
+export function blockKey(pos: Point3 | { x: number; y: number; z: number }): string {
+  if (Array.isArray(pos)) return `${pos[0]},${pos[1]},${pos[2]}`;
+  return `${pos.x},${pos.y},${pos.z}`;
+}
+
+export interface DisplaySplit {
+  /** Bloques que se dibujan con opacidad plena. */
+  focus: ParsedBlock[];
+  /** Bloques de contexto: capas inferiores y/o materiales no seleccionados. */
+  context: ParsedBlock[];
+}
+
+/**
+ * Prepara el visor en dos pasadas.
+ *
+ * - Las capas superiores a `layerY` nunca se dibujan: dejan la capa activa despejada.
+ * - La capa activa va en `focus`; las inferiores en `context` (atenuadas) para no
+ *   perder el contexto construido.
+ * - Con highlight, solo los bloques coincidentes de la capa activa van en `focus`;
+ *   el resto se mantiene atenuado en `context`.
+ */
+export function splitForDisplay(
+  blocks: ParsedBlock[],
+  layerY: number | null,
+  highlight: string | null,
+  isolateLayer = false,
+): DisplaySplit {
+  const wanted = highlight === null ? null : baseBlockId(highlight);
+  const focus: ParsedBlock[] = [];
+  const context: ParsedBlock[] = [];
+
+  for (const block of blocks) {
+    if (layerY !== null) {
+      if (block.y > layerY) continue;
+      if (block.y === layerY) {
+        if (wanted === null || baseBlockId(block.blockId) === wanted) focus.push(block);
+        else context.push(block);
+      } else if (!isolateLayer) {
+        context.push(block);
+      }
+      continue;
+    }
+
+    if (wanted === null || baseBlockId(block.blockId) === wanted) focus.push(block);
+    else context.push(block);
+  }
+
+  return { focus, context };
+}
+
 /** Claves únicas `cx,cy,cz` de las secciones 16³ (o del tamaño indicado) presentes. */
 export function chunkKeys(blocks: ParsedBlock[], chunkSize = 16): string[] {
   const size = Number.isFinite(chunkSize) && chunkSize >= 1 ? Math.floor(chunkSize) : 16;

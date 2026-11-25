@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ParsedBlock } from './parser/types';
-import { baseBlockId, chunkCounts, chunkKeys, filterBlocks, measurePoints, rulerMarks } from './layers';
+import { baseBlockId, chunkCounts, chunkKeys, filterBlocks, measurePoints, rulerMarks, splitForDisplay } from './layers';
 
 const block = (
   blockId: string,
@@ -42,6 +42,36 @@ describe('filterBlocks', () => {
     const result = filterBlocks(blocks, null, null);
     expect(result).toHaveLength(blocks.length);
     expect(result).not.toBe(blocks);
+  });
+});
+
+describe('splitForDisplay', () => {
+  it('separa la capa activa del contexto y oculta las superiores', () => {
+    const result = splitForDisplay(blocks, 0, null);
+    expect(result.focus.map((item) => item.blockId)).toEqual([
+      'minecraft:stone',
+      'minecraft:redstone_wire[delay=2]',
+    ]);
+    expect(result.context).toEqual([]);
+    expect(splitForDisplay(blocks, 1, null).context).toHaveLength(2);
+  });
+
+  it('con highlight deja coincidentes en foco y el resto en contexto', () => {
+    const result = splitForDisplay(blocks, 0, 'minecraft:redstone_wire[delay=1]');
+    expect(result.focus.map((item) => item.blockId)).toEqual(['minecraft:redstone_wire[delay=2]']);
+    expect(result.context.map((item) => item.blockId)).toEqual(['minecraft:stone']);
+  });
+
+  it('aisla la capa cuando se pide', () => {
+    const result = splitForDisplay(blocks, 1, null, true);
+    expect(result.focus).toHaveLength(1);
+    expect(result.context).toHaveLength(0);
+  });
+
+  it('sin capa respeta el highlight sobre todo el schematic', () => {
+    const result = splitForDisplay(blocks, null, 'stone');
+    expect(result.focus.map((item) => item.blockId)).toEqual(['minecraft:stone']);
+    expect(result.context).toHaveLength(3);
   });
 });
 

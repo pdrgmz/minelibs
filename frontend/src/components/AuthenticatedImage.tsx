@@ -33,6 +33,6 @@ export function AuthenticatedImage({ src, alt, className, fallback = '' }: Props
     };
   }, [src]);
 
-  if (!url) return <div className={`${className ?? ''} flex items-center justify-center bg-slate-800 text-xs text-slate-500`}>{fallback}</div>;
+  if (!url) return <div className={`${className ?? ''} flex items-center justify-center bg-terminal font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-paper/60`}>{fallback}</div>;
   return <img src={url} alt={alt} className={className} loading="lazy" />;
 }

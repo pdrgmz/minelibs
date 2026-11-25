@@ -11,7 +11,7 @@ import { SchematicDetailPage } from './pages/SchematicDetailPage';
 
 export default function App() {
   const { user, loading } = useAuth();
-  if (loading) return <div className="flex min-h-screen items-center justify-center text-slate-400">Cargando…</div>;
+  if (loading) return <div className="label flex min-h-screen items-center justify-center text-muted">Cargando…</div>;
 
   return (
     <Routes>

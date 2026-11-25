@@ -1,7 +1,7 @@
 import { useState, type ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, downloadBlob, ApiError } from '../api/client';
-import { Button, Card, ErrorBanner, Icon, NoticeBanner, PageHeader } from '../components/ui';
+import { Badge, Button, Card, ErrorBanner, Icon, NoticeBanner, PageHeader, SectionHeading } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import type { ImportResult } from '../types';
 
@@ -58,31 +58,39 @@ export function ImportExportPage() {
       <ErrorBanner>{error}</ErrorBanner>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Card className="flex flex-col">
-          <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10 text-accent"><Icon name="download" size={20} /></span>
-          <h2 className="font-semibold text-white">{t('exportBackup')}</h2>
-          <p className="mt-1 flex-1 text-sm text-slate-400">{t('exportBackupHint')}</p>
-          <Button variant="primary" icon="download" loading={busy} onClick={() => void exportMine()} className="mt-4 w-full">{t('exportBackup')}</Button>
+        <Card className="flex flex-col p-0">
+          <div className="flex items-center gap-3 border-b-2 border-ink bg-terminal p-5 text-paper">
+            <span className="flex h-10 w-10 items-center justify-center rounded-control border border-ink bg-accent text-ink"><Icon name="download" size={20} /></span>
+            <h2 className="font-mono text-sm font-bold uppercase tracking-[0.1em]">{t('exportBackup')}</h2>
+          </div>
+          <div className="flex flex-1 flex-col p-5">
+            <p className="flex-1 font-sans text-sm text-muted">{t('exportBackupHint')}</p>
+            <Button variant="primary" icon="download" loading={busy} onClick={() => void exportMine()} className="mt-4 w-full">{t('exportBackup')}</Button>
+          </div>
         </Card>
-        <Card className="flex flex-col">
-          <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10 text-accent"><Icon name="upload" size={20} /></span>
-          <h2 className="font-semibold text-white">{t('chooseZip')}</h2>
-          <p className="mt-1 flex-1 text-sm text-slate-400">{t('importHint')}</p>
-          <label className="mt-4 flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-700 bg-surface px-3 text-sm font-medium text-slate-100 hover:border-slate-600 disabled:opacity-50">
-            <Icon name="folder" size={15} />
-            {t('chooseZip')}
-            <input type="file" accept=".zip,application/zip" className="sr-only" onChange={(event) => void onFile(event)} />
-          </label>
+        <Card className="flex flex-col p-0">
+          <div className="flex items-center gap-3 border-b-2 border-ink bg-terminal p-5 text-paper">
+            <span className="flex h-10 w-10 items-center justify-center rounded-control border border-ink bg-accent text-ink"><Icon name="upload" size={20} /></span>
+            <h2 className="font-mono text-sm font-bold uppercase tracking-[0.1em]">{t('chooseZip')}</h2>
+          </div>
+          <div className="flex flex-1 flex-col p-5">
+            <p className="flex-1 font-sans text-sm text-muted">{t('importHint')}</p>
+            <label className="mt-4 flex h-10 cursor-pointer items-center justify-center gap-2 rounded-control border border-ink bg-canvas px-3 font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-ink hover:bg-surface">
+              <Icon name="folder" size={15} />
+              {t('chooseZip')}
+              <input type="file" accept=".zip,application/zip" className="sr-only" onChange={(event) => void onFile(event)} disabled={busy} />
+            </label>
+          </div>
         </Card>
       </div>
 
       {user?.role === 'ADMIN' && (
         <Card className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-800 text-slate-300"><Icon name="shield" size={20} /></span>
+            <span className="flex h-10 w-10 items-center justify-center rounded-control border border-ink bg-ink text-accent"><Icon name="shield" size={20} /></span>
             <div>
-              <h2 className="font-semibold text-white">{t('adminExport')}</h2>
-              <p className="mt-0.5 text-sm text-slate-400">{t('adminExportHint')}</p>
+              <h2 className="font-mono text-sm font-bold uppercase tracking-[0.1em] text-ink">{t('adminExport')}</h2>
+              <p className="mt-1 font-sans text-sm text-muted">{t('adminExportHint')}</p>
             </div>
           </div>
           <Button icon="download" loading={busy} onClick={() => void exportAll()}>{t('adminExport')}</Button>
@@ -91,13 +99,18 @@ export function ImportExportPage() {
 
       {result && (
         <Card>
-          <h2 className="mb-3 text-base font-semibold text-white">{t('importResult')}</h2>
-          <NoticeBanner>{t('imported')}: <strong>{result.imported}</strong> · {t('skipped')}: <strong>{result.skipped}</strong></NoticeBanner>
+          <SectionHeading title={t('importResult')} />
+          <NoticeBanner>{t('imported')}: <strong className="tabular">{result.imported}</strong> · {t('skipped')}: <strong className="tabular">{result.skipped}</strong></NoticeBanner>
           {result.errors.length > 0 && (
-            <ul className="mt-3 max-h-48 list-disc space-y-1 overflow-auto pl-5 text-sm text-amber-300">
+            <ul className="mt-3 max-h-48 list-disc space-y-1 overflow-auto pl-5 font-sans text-sm text-terracotta">
               {result.errors.map((message, index) => <li key={index}>{message}</li>)}
             </ul>
           )}
+          <div className="mt-4 flex flex-wrap gap-1.5">
+            <Badge tone="accent">{t('imported')} {result.imported}</Badge>
+            <Badge tone="warning">{t('skipped')} {result.skipped}</Badge>
+            <Badge tone="danger">{t('errors')} {result.errors.length}</Badge>
+          </div>
         </Card>
       )}
     </div>

@@ -3,12 +3,27 @@ export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
-      // Una sola familia de acento y una escala de forma declarada:
-      // controles/badges = 8px (rounded-lg), superficies = 16px (rounded-2xl).
+      // Neo-brutalismo técnico: una sola tinta, superficies de papel y un verde de instrumento.
       colors: {
-        surface: '#14171f',
-        panel: '#1c202b',
-        accent: '#5b8cff',
+        canvas: '#EAECE4',
+        surface: '#E1E3DA',
+        paper: '#F2F4EC',
+        ink: '#141514',
+        muted: '#5C5F58',
+        dash: '#8C9087',
+        accent: '#00E676',
+        amber: '#C68B00',
+        terracotta: '#C93B3B',
+        lavender: '#A78BFA',
+        terminal: '#161716',
+      },
+      fontFamily: {
+        mono: ['"JetBrains Mono"', '"Space Mono"', '"IBM Plex Mono"', '"Geist Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+        sans: ['Inter', '"IBM Plex Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+      },
+      borderRadius: {
+        control: '8px',
+        surface: '16px',
       },
     },
   },
