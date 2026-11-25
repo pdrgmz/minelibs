@@ -11,12 +11,15 @@ import {
   presetCamera,
   type ViewerCamera,
   type ViewPreset,
+  wheelDeltaPixels,
 } from './camera';
 import {
   blockKey,
   chunkCounts,
   filterBlocks,
+  isInvisibleBlock,
   measurePoints,
+  pickableBlockKeys,
   rulerMarks,
   splitForDisplay,
 } from './layers';
@@ -26,7 +29,9 @@ import type { ParsedBlock } from './parser/types';
 import { AssetLoader, type AssetProgress } from './resources';
 
 export type ViewerTheme = 'dark' | 'light';
-export type CaptureFn = (theme?: ViewerTheme) => string | null;
+/** Las miniaturas son siempre blancas, con independencia del tema del visor. */
+export type CaptureFn = () => string | null;
+type DrawTheme = ViewerTheme | 'thumbnail';
 
 export interface SchematicViewerProps {
   blocks: ParsedBlock[];
@@ -74,6 +79,7 @@ interface DisplayPair {
 }
 
 type Gesture = 'rotate' | 'pan' | 'pinch' | 'measure' | null;
+type ScreenPoint = { clientX: number; clientY: number };
 
 interface Engine {
   canvas: HTMLCanvasElement;
@@ -163,11 +169,15 @@ function computeView(camera: ViewerCamera): mat4 {
 
 function computeProjection(canvas: HTMLCanvasElement): mat4 {
   const projection = mat4.create();
-  const width = Math.max(1, canvas.clientWidth);
-  const height = Math.max(1, canvas.clientHeight);
+  const width = Math.max(1, canvas.width || canvas.clientWidth);
+  const height = Math.max(1, canvas.height || canvas.clientHeight);
   mat4.perspective(projection, (70 * Math.PI) / 180, width / height, 0.1, 500);
   return projection;
 }
+
+/** La preview de la biblioteca usa 4:3; capturar en el mismo aspecto evita recortes. */
+const THUMB_WIDTH = 640;
+const THUMB_HEIGHT = 480;
 
 function gridVertices(size: Size): Float32Array {
   const [widthX, heightY, lengthZ] = size;
@@ -293,11 +303,11 @@ function unproject(engine: Engine, ndcX: number, ndcY: number, ndcZ: number): ve
   return vec3.transformMat4(vec3.create(), vec3.fromValues(ndcX, ndcY, ndcZ), inverse);
 }
 
-function rayFromEvent(engine: Engine, event: PointerEvent | MouseEvent): { origin: Vec3Tuple; direction: Vec3Tuple } | null {
+function rayFromEvent(engine: Engine, point: ScreenPoint): { origin: Vec3Tuple; direction: Vec3Tuple } | null {
   const rect = engine.canvas.getBoundingClientRect();
   if (rect.width === 0 || rect.height === 0) return null;
-  const ndcX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-  const ndcY = 1 - ((event.clientY - rect.top) / rect.height) * 2;
+  const ndcX = ((point.clientX - rect.left) / rect.width) * 2 - 1;
+  const ndcY = 1 - ((point.clientY - rect.top) / rect.height) * 2;
   const near = unproject(engine, ndcX, ndcY, -1);
   const far = unproject(engine, ndcX, ndcY, 1);
   if (!near || !far) return null;
@@ -313,8 +323,8 @@ function clampPoint(point: Vec3Tuple, size: Size): Point3 {
   return [clamp(point[0], size[0]), clamp(point[1], size[1]), clamp(point[2], size[2])];
 }
 
-function pickCell(engine: Engine, event: PointerEvent | MouseEvent, planeY: number | null): Point3 | null {
-  const ray = rayFromEvent(engine, event);
+function pickCell(engine: Engine, point: ScreenPoint, planeY: number | null): Point3 | null {
+  const ray = rayFromEvent(engine, point);
   if (!ray) return null;
   const hit = pickVoxel(ray.origin, ray.direction, engine.occupied);
   if (hit) return clampPoint(hit, engine.size);
@@ -376,9 +386,16 @@ const THEME_COLORS = {
     measure: [0.788, 0.231, 0.231, 1] as const,
     contextAlpha: 0.35,
   },
+  thumbnail: {
+    clear: [1, 1, 1, 1] as const,
+    grid: [0.078, 0.082, 0.078, 0.25] as const,
+    outline: [0.078, 0.082, 0.078, 1] as const,
+    measure: [0.788, 0.231, 0.231, 1] as const,
+    contextAlpha: 0.55,
+  },
 } as const;
 
-function drawEngine(engine: Engine, themeOverride?: ViewerTheme): void {
+function drawEngine(engine: Engine, themeOverride?: DrawTheme): void {
   const { gl, canvas } = engine;
   if (!engine.focusRenderer) return;
   const palette = THEME_COLORS[themeOverride ?? engine.theme];
@@ -433,19 +450,55 @@ function drawEngine(engine: Engine, themeOverride?: ViewerTheme): void {
   gl.enable(gl.DEPTH_TEST);
 }
 
-function captureCanvas(canvas: HTMLCanvasElement, engine: Engine, theme?: ViewerTheme): string | null {
+function captureCanvas(canvas: HTMLCanvasElement, engine: Engine): string | null {
   if (!engine.focusRenderer) return null;
+  const snapshot = document.createElement('canvas');
+  snapshot.width = THUMB_WIDTH;
+  snapshot.height = THUMB_HEIGHT;
+  const context = snapshot.getContext('2d');
+  if (!context) return null;
+
+  const originalWidth = canvas.width;
+  const originalHeight = canvas.height;
+  const originalStyleWidth = canvas.style.width;
+  const originalStyleHeight = canvas.style.height;
+  const originalCamera = engine.camera;
+  const originalGrid = engine.showGrid;
+  const originalOutline = engine.outlineVertexCount;
+  const originalMeasure = engine.measureVertexCount;
+  const originalOpacity = engine.contextOpacity;
   try {
-    drawEngine(engine, theme);
-    const snapshot = document.createElement('canvas');
-    snapshot.width = 256;
-    snapshot.height = 256;
-    const context = snapshot.getContext('2d');
-    if (!context) return null;
-    context.drawImage(canvas, 0, 0, 256, 256);
+    canvas.width = THUMB_WIDTH;
+    canvas.height = THUMB_HEIGHT;
+    // StructureRenderer calcula su proyección con clientWidth/clientHeight,
+    // no con el buffer: el CSS también debe ser 4:3 durante la captura.
+    canvas.style.width = `${THUMB_WIDTH}px`;
+    canvas.style.height = `${THUMB_HEIGHT}px`;
+    engine.focusRenderer.setViewport(0, 0, THUMB_WIDTH, THUMB_HEIGHT);
+    engine.contextRenderer?.setViewport(0, 0, THUMB_WIDTH, THUMB_HEIGHT);
+    engine.camera = presetCamera('iso', engine.size, THUMB_WIDTH / THUMB_HEIGHT);
+    engine.showGrid = false;
+    engine.outlineVertexCount = 0;
+    engine.measureVertexCount = 0;
+    engine.contextOpacity = THEME_COLORS.thumbnail.contextAlpha;
+    drawEngine(engine, 'thumbnail');
+    context.drawImage(canvas, 0, 0);
     return snapshot.toDataURL('image/png');
   } catch {
     return null;
+  } finally {
+    canvas.width = originalWidth;
+    canvas.height = originalHeight;
+    canvas.style.width = originalStyleWidth;
+    canvas.style.height = originalStyleHeight;
+    engine.focusRenderer.setViewport(0, 0, originalWidth, originalHeight);
+    engine.contextRenderer?.setViewport(0, 0, originalWidth, originalHeight);
+    engine.camera = originalCamera;
+    engine.showGrid = originalGrid;
+    engine.outlineVertexCount = originalOutline;
+    engine.measureVertexCount = originalMeasure;
+    engine.contextOpacity = originalOpacity;
+    engine.scheduleRender();
   }
 }
 
@@ -522,7 +575,7 @@ export function SchematicViewer(props: SchematicViewerProps) {
       showRuler: propsRef.current.showRuler,
       theme: propsRef.current.theme,
       contextOpacity: propsRef.current.theme === 'dark' ? THEME_COLORS.dark.contextAlpha : THEME_COLORS.light.contextAlpha,
-      occupied: new Set(props.blocks.map((block) => blockKey([block.x, block.y, block.z]))),
+      occupied: pickableBlockKeys(props.blocks, props.layerY, props.isolateLayer ?? false),
       structureCache: new Map(),
       hoveredCell: null,
       selectedCell: null,
@@ -537,6 +590,9 @@ export function SchematicViewer(props: SchematicViewerProps) {
       engine.frame = requestAnimationFrame(() => {
         engine.frame = null;
         drawEngine(engine);
+        // La celda bajo el cursor cambia aunque el ratón no se mueva si la
+        // cámara rota, hace zoom o cambia de capa.
+        refreshHover();
       });
     };
     engine.requestRebuild = () => {
@@ -545,6 +601,7 @@ export function SchematicViewer(props: SchematicViewerProps) {
         engine.rebuildFrame = null;
         if (cancelled || !engine.focusRenderer || !engine.contextRenderer) return;
         const current = propsRef.current;
+        engine.occupied = pickableBlockKeys(current.blocks, current.layerY, current.isolateLayer ?? false);
         const key = displayKey(current, engine.size);
         let pair = engine.structureCache.get(key);
         if (!pair) {
@@ -583,6 +640,8 @@ export function SchematicViewer(props: SchematicViewerProps) {
     let downAt: { x: number; y: number; time: number; button: number } | null = null;
     let pinchDistance = 0;
     let pinchMid: [number, number] = [0, 0];
+    let lastHoverPoint: ScreenPoint | null = null;
+    let refreshHover: () => void = () => undefined;
 
     const panBy = (dx: number, dy: number): void => {
       const inverseView = mat4.invert(mat4.create(), computeView(engine.camera));
@@ -611,14 +670,27 @@ export function SchematicViewer(props: SchematicViewerProps) {
       setLineBuffer(engine, 'outline', cell, null);
       engine.scheduleRender();
     };
-    const updateHover = (event: PointerEvent): void => {
-      const cell = pickCell(engine, event, propsRef.current.layerMode ? propsRef.current.layerY ?? 0 : null);
+    const applyHover = (point: ScreenPoint | null): void => {
+      const cell = point
+        ? pickCell(engine, point, propsRef.current.layerMode ? propsRef.current.layerY ?? 0 : null)
+        : null;
       const key = cell ? blockKey(cell) : null;
       if (key === hoverKey.current) return;
       hoverKey.current = key;
       engine.hoveredCell = cell;
       setHoveredCell(cell);
       setOutline();
+    };
+    refreshHover = (): void => {
+      if (lastHoverPoint) applyHover(lastHoverPoint);
+    };
+    const updateHover = (point: ScreenPoint): void => {
+      lastHoverPoint = { clientX: point.clientX, clientY: point.clientY };
+      applyHover(lastHoverPoint);
+    };
+    const clearHover = (): void => {
+      lastHoverPoint = null;
+      applyHover(null);
     };
     const completeMeasure = (event: PointerEvent): void => {
       const cell = pickCell(engine, event, propsRef.current.layerY ?? 0);
@@ -716,13 +788,26 @@ export function SchematicViewer(props: SchematicViewerProps) {
       if (pointers.size === 0) {
         gesture = null;
         canvas.style.cursor = propsRef.current.measureMode ? 'crosshair' : 'grab';
+        if (!cancelled) {
+          const rect = canvas.getBoundingClientRect();
+          const inside = event.clientX >= rect.left && event.clientX <= rect.right
+            && event.clientY >= rect.top && event.clientY <= rect.bottom;
+          if (inside) updateHover(event);
+          else clearHover();
+        }
       }
     };
     const onPointerUp = (event: PointerEvent): void => finishPointer(event);
     const onPointerCancel = (event: PointerEvent): void => finishPointer(event, true);
+    const onPointerLeave = (): void => {
+      if (pointers.size === 0) clearHover();
+    };
     const onWheel = (event: WheelEvent): void => {
       event.preventDefault();
-      zoomAt(event.clientX, event.clientY, Math.exp(event.deltaY * 0.001));
+      const delta = wheelDeltaPixels(event.deltaY, event.deltaMode, canvas.clientHeight);
+      // Un delta enorme (trackpad rápido o salto de página) haría invisible el modelo.
+      const stepped = Math.max(-240, Math.min(240, delta));
+      zoomAt(event.clientX, event.clientY, Math.exp(stepped * 0.001));
     };
     const onDoubleClick = (event: MouseEvent): void => {
       event.preventDefault();
@@ -747,11 +832,9 @@ export function SchematicViewer(props: SchematicViewerProps) {
         setLineBuffer(engine, 'measure', null, null);
         propsRef.current.onMeasure?.(null);
         engine.selectedCell = null;
-        engine.hoveredCell = null;
-        hoverKey.current = null;
         setSelectedCell(null);
-        setHoveredCell(null);
         setOutline();
+        clearHover();
       } else if (event.key === 'ArrowLeft') {
         if (propsRef.current.layerMode) panBy(24, 0);
         else engine.camera.yRotation -= 0.12;
@@ -800,6 +883,7 @@ export function SchematicViewer(props: SchematicViewerProps) {
     canvas.addEventListener('pointermove', onPointerMove);
     canvas.addEventListener('pointerup', onPointerUp);
     canvas.addEventListener('pointercancel', onPointerCancel);
+    canvas.addEventListener('pointerleave', onPointerLeave);
     canvas.addEventListener('wheel', onWheel, { passive: false });
     canvas.addEventListener('dblclick', onDoubleClick);
     canvas.addEventListener('contextmenu', onContextMenu);
@@ -812,7 +896,14 @@ export function SchematicViewer(props: SchematicViewerProps) {
 
     const loader = new AssetLoader(props.version);
     loader.setToken(props.token);
-    const allBlockIds = [...new Set(props.blocks.map((block) => block.blockId))];
+    // `waterlogged` decide si deepslate dibuja agua dentro de otro bloque;
+    // conservarlo permite descargar también las texturas del líquido.
+    const allBlockIds = [...new Set(props.blocks
+      .filter((block) => !isInvisibleBlock(block.blockId))
+      .map((block) => {
+        const base = block.blockId.split('[')[0] ?? block.blockId;
+        return block.properties.waterlogged === 'true' ? `${base}[waterlogged=true]` : base;
+      }))];
 
     void (async () => {
       try {
@@ -829,7 +920,7 @@ export function SchematicViewer(props: SchematicViewerProps) {
         engine.resources = resources;
         engine.size = computeSize(propsRef.current.blocks);
         engine.camera.center = [engine.size[0] / 2, engine.size[1] / 2, engine.size[2] / 2];
-        engine.occupied = new Set(propsRef.current.blocks.map((block) => blockKey([block.x, block.y, block.z])));
+        engine.occupied = pickableBlockKeys(propsRef.current.blocks, propsRef.current.layerY, propsRef.current.isolateLayer ?? false);
         const sizeKey = displayKey(propsRef.current, engine.size);
         const initialPair = buildDisplayPair(
           propsRef.current.blocks,
@@ -852,7 +943,12 @@ export function SchematicViewer(props: SchematicViewerProps) {
 
         setStatus(t('ready'));
         propsRef.current.onProgress?.(t('ready'));
-        propsRef.current.onReady?.((theme) => captureCanvas(canvas, engine, theme));
+        const sourceBlocks = propsRef.current.blocks;
+        propsRef.current.onReady?.(() => {
+          // Un motor reconstruido con bloques nuevos invalida las capturas anteriores.
+          if (cancelled || sourceBlocks.length === 0 || propsRef.current.blocks !== sourceBlocks) return null;
+          return captureCanvas(canvas, engine);
+        });
         engine.scheduleRender();
       } catch (error) {
         if (cancelled) return;
@@ -870,6 +966,7 @@ export function SchematicViewer(props: SchematicViewerProps) {
       canvas.removeEventListener('pointermove', onPointerMove);
       canvas.removeEventListener('pointerup', onPointerUp);
       canvas.removeEventListener('pointercancel', onPointerCancel);
+      canvas.removeEventListener('pointerleave', onPointerLeave);
       canvas.removeEventListener('wheel', onWheel);
       canvas.removeEventListener('dblclick', onDoubleClick);
       canvas.removeEventListener('contextmenu', onContextMenu);

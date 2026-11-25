@@ -99,6 +99,7 @@ function listItem(row: NonNullable<SchematicRow>) {
     totalBlocks: row.totalBlocks,
     thumbnailUrl: row.thumbnail ? `/api/v1/schematics/${row.id}/thumbnail` : null,
     createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
   };
 }
 

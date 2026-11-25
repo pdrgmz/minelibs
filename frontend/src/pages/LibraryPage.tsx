@@ -123,7 +123,7 @@ export function LibraryPage() {
         </div>
         <div className="flex items-stretch gap-2">
           <Metric label={t('blocks')} value={data?.total ?? '—'} hint={t('library')} className="min-w-[104px]" />
-          <Link to="/new" className={buttonClass('primary')}>
+          <Link to="/new" className={buttonClass('primary', 'md', 'self-stretch')} style={{ height: 'auto' }}>
             <Icon name="plus" />
             {t('newSchematic')}
           </Link>
@@ -200,11 +200,11 @@ export function LibraryPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {data.items.map((schematic) => (
             <article key={schematic.id} className="overflow-hidden rounded-surface border border-ink bg-surface transition-colors duration-100 hover:border-muted">
-              <Link to={`/schematic/${schematic.id}`} className="block h-36 overflow-hidden border-b border-ink bg-terminal" aria-label={schematic.name}>
+              <Link to={`/schematic/${schematic.id}`} className="block aspect-[4/3] overflow-hidden border-b border-ink bg-white" aria-label={schematic.name}>
                 {schematic.thumbnailUrl ? (
-                  <AuthenticatedImage src={`/schematics/${schematic.id}/thumbnail`} alt={schematic.name} className="h-full w-full object-cover" fallback={schematic.format} />
+                  <AuthenticatedImage src={`/schematics/${schematic.id}/thumbnail?v=${encodeURIComponent(schematic.updatedAt)}`} alt={schematic.name} className="h-full w-full object-cover" fallback={schematic.format} />
                 ) : (
-                  <span className="flex h-full items-center justify-center font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-paper/60">{schematic.format}</span>
+                  <span className="flex h-full items-center justify-center font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-ink/60">{schematic.format}</span>
                 )}
               </Link>
               <div className="space-y-3 p-4">

@@ -40,6 +40,7 @@ export interface SchematicSummary {
   totalBlocks: number;
   thumbnailUrl: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface SchematicDetail extends SchematicSummary {

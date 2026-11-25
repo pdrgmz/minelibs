@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ParsedBlock } from './parser/types';
-import { baseBlockId, chunkCounts, chunkKeys, filterBlocks, measurePoints, rulerMarks, splitForDisplay } from './layers';
+import { baseBlockId, chunkCounts, chunkKeys, filterBlocks, isInvisibleBlock, measurePoints, pickableBlockKeys, rulerMarks, splitForDisplay } from './layers';
 
 const block = (
   blockId: string,
@@ -72,6 +72,34 @@ describe('splitForDisplay', () => {
     const result = splitForDisplay(blocks, null, 'stone');
     expect(result.focus.map((item) => item.blockId)).toEqual(['minecraft:stone']);
     expect(result.context).toHaveLength(3);
+  });
+});
+
+describe('isInvisibleBlock', () => {
+  it('reconoce aire y estados con propiedades', () => {
+    expect(isInvisibleBlock('minecraft:air')).toBe(true);
+    expect(isInvisibleBlock('minecraft:cave_air')).toBe(true);
+    expect(isInvisibleBlock('minecraft:stone')).toBe(false);
+  });
+});
+
+describe('pickableBlockKeys', () => {
+  const mixed = [
+    block('minecraft:air', 0, 0, 0),
+    block('minecraft:cave_air', 1, 0, 0),
+    block('minecraft:structure_void', 2, 0, 0),
+    block('minecraft:stone', 3, 0, 0),
+    block('minecraft:stone', 4, 1, 0),
+    block('minecraft:stone', 5, 2, 0),
+  ];
+
+  it('ignora el aire que no se dibuja', () => {
+    expect([...pickableBlockKeys(mixed, null)]).toEqual(['3,0,0', '4,1,0', '5,2,0']);
+  });
+
+  it('solo incluye las capas visibles según el filtro Y', () => {
+    expect([...pickableBlockKeys(mixed, 1)]).toEqual(['3,0,0', '4,1,0']);
+    expect([...pickableBlockKeys(mixed, 1, true)]).toEqual(['4,1,0']);
   });
 });
 

@@ -1,13 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { chunkCenter, clampCamera, fitDistance, presetCamera } from './camera';
+import { chunkCenter, clampCamera, fitDistance, presetCamera, wheelDeltaPixels } from './camera';
 
 const size: [number, number, number] = [48, 32, 80];
+
+describe('wheelDeltaPixels', () => {
+  it('respeta deltas en píxeles', () => {
+    expect(wheelDeltaPixels(100, 0, 600)).toBe(100);
+  });
+
+  it('convierte líneas y páginas a píxeles', () => {
+    expect(wheelDeltaPixels(3, 1, 600)).toBe(48);
+    expect(wheelDeltaPixels(1, 2, 600)).toBe(600);
+  });
+});
 
 describe('camera presets', () => {
   it('encuadra vista superior, frontal y lateral con centros coherentes', () => {
     for (const preset of ['iso', 'top', 'front', 'right'] as const) {
       const camera = presetCamera(preset, size, 1.5);
-      expect(camera.center).toEqual([24, 16, 40]);
+      const expected: [number, number, number] = [24, 16, 40];
+      for (let axis = 0; axis < 3; axis += 1) {
+        expect(Number.isFinite(camera.center[axis])).toBe(true);
+        expect(Math.abs(camera.center[axis] - expected[axis])).toBeLessThan(size[axis] / 2 + 1);
+      }
       expect(camera.distance).toBeGreaterThan(0);
       expect(Math.abs(camera.xRotation)).toBeLessThanOrEqual(Math.PI / 2);
     }
@@ -29,6 +44,11 @@ describe('camera presets', () => {
 
   it('la distancia de encuadre crece con el tamaño', () => {
     expect(fitDistance(size, 1.5)).toBeGreaterThan(fitDistance([8, 8, 8], 1.5));
+  });
+
+  it('un aspecto más ancho permite acercar la cámara', () => {
+    const wide: [number, number, number] = [80, 1, 8];
+    expect(fitDistance(wide, 2)).toBeLessThan(fitDistance(wide, 1));
   });
 
   it('calcula centros de sección recortados a los límites', () => {

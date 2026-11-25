@@ -29,6 +29,37 @@ export function blockKey(pos: Point3 | { x: number; y: number; z: number }): str
   return `${pos.x},${pos.y},${pos.z}`;
 }
 
+/** Bloques que no dibujan geometría: el raycast no debe detenerse en ellos. */
+const INVISIBLE_BLOCKS = new Set([
+  'minecraft:air',
+  'minecraft:cave_air',
+  'minecraft:void_air',
+  'minecraft:structure_void',
+]);
+
+/** true para los IDs que no dibujan geometría y tampoco necesitan assets. */
+export function isInvisibleBlock(id: string): boolean {
+  return INVISIBLE_BLOCKS.has(id.split('[')[0] ?? id);
+}
+
+/**
+ * Celdas que realmente están en pantalla: sin aire y sin las capas que el
+ * filtro Y oculta. Debe reflejar siempre el contenido de `splitForDisplay`.
+ */
+export function pickableBlockKeys(
+  blocks: ParsedBlock[],
+  layerY: number | null,
+  isolateLayer = false,
+): Set<string> {
+  const keys = new Set<string>();
+  for (const block of blocks) {
+    if (INVISIBLE_BLOCKS.has(block.blockId)) continue;
+    if (layerY !== null && (block.y > layerY || (isolateLayer && block.y < layerY))) continue;
+    keys.add(blockKey([block.x, block.y, block.z]));
+  }
+  return keys;
+}
+
 export interface DisplaySplit {
   /** Bloques que se dibujan con opacidad plena. */
   focus: ParsedBlock[];

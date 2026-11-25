@@ -55,15 +55,16 @@ export function SchematicDetailPage() {
   const [contextPreset, setContextPreset] = useState<'off' | 'low' | 'high'>('low');
   const [theme, setTheme] = useState<ViewerTheme>(() => {
     try {
-      return localStorage.getItem('minelibs:viewer-bg') === 'light' ? 'light' : 'dark';
+      return localStorage.getItem('minelibs:viewer-bg') === 'dark' ? 'dark' : 'light';
     } catch {
-      return 'dark';
+      return 'light';
     }
   });
   const [autoplay, setAutoplay] = useState(false);
   const [autoSpeed, setAutoSpeed] = useState(900);
   const [helpOpen, setHelpOpen] = useState(false);
   const [renderStage, setRenderStage] = useState('');
+  const [viewerReady, setViewerReady] = useState(0);
   const [materialQuery, setMaterialQuery] = useState('');
   const [editing, setEditing] = useState(false);
   const [collections, setCollections] = useState<Collection[]>([]);
@@ -132,21 +133,47 @@ export function SchematicDetailPage() {
   const checked = new Set(schematic?.checkedMaterials ?? []);
   const checkedCount = rows.filter((row) => checked.has(row.blockId)).length;
 
-  // Genera la miniatura isométrica una sola vez por schematic cuando el visor está listo.
+  // Captura la miniatura isométrica sólo cuando el motor ya dibuja los bloques del schematic.
+  const captureThumbnail = useCallback(async (targetId: string, isActive: () => boolean = () => true): Promise<boolean> => {
+    for (let attempt = 0; attempt < 6 && isActive(); attempt += 1) {
+      const dataUrl = captureRef.current?.();
+      // Una captura casi vacía es sólo el color de fondo: espera al siguiente frame.
+      if (dataUrl && dataUrl.length > 4000) {
+        try {
+          const blob = await (await fetch(dataUrl)).blob();
+          const updated = await api.schematics.uploadThumbnail(targetId, blob);
+          thumbnailDone.current = targetId;
+          setSchematic(updated);
+          return true;
+        } catch {
+          return false;
+        }
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 600));
+    }
+    return false;
+  }, []);
+
   useEffect(() => {
-    if (!schematic || !parsed || !captureRef.current || thumbnailDone.current === schematic.id) return;
-    thumbnailDone.current = schematic.id;
+    if (!schematic || !parsed || !blocks.length || viewerReady === 0 || schematic.userId !== user?.id || thumbnailDone.current === schematic.id) return;
+    let active = true;
     const timer = window.setTimeout(() => {
-      const dataUrl = captureRef.current?.('dark');
-      if (!dataUrl) return;
-      void fetch(dataUrl)
-        .then((response) => response.blob())
-        .then((blob) => api.schematics.uploadThumbnail(schematic.id, blob))
-        .then((updated) => setSchematic(updated))
-        .catch(() => setNotice(t('thumbnailFailed')));
-    }, 600);
-    return () => window.clearTimeout(timer);
-  }, [schematic, parsed, t]);
+      void captureThumbnail(schematic.id, () => active).then((ok) => {
+        if (!ok && active) setNotice(t('thumbnailFailed'));
+      });
+    }, 400);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [schematic, parsed, blocks.length, viewerReady, user, t, captureThumbnail]);
+
+  const regenerateThumbnail = async (): Promise<void> => {
+    if (!schematic) return;
+    setNotice('');
+    const ok = await captureThumbnail(schematic.id);
+    setNotice(t(ok ? 'thumbnailReady' : 'thumbnailFailed'));
+  };
 
   const toggleMaterial = async (blockId: string) => {
     if (!schematic) return;
@@ -203,7 +230,10 @@ export function SchematicDetailPage() {
     setSchematic(await api.schematics.patch(id, { checkedMaterials: [] } as Partial<SchematicDetail>));
   };
 
-  const onReady = useCallback((capture: CaptureFn) => { captureRef.current = capture; }, []);
+  const onReady = useCallback((capture: CaptureFn) => {
+    captureRef.current = capture;
+    setViewerReady((value) => value + 1);
+  }, []);
   const toggleTheme = useCallback(() => setTheme((value) => value === 'dark' ? 'light' : 'dark'), []);
   const stepLayer = useCallback((delta: number) => {
     setLayerY((value) => {
@@ -276,29 +306,8 @@ export function SchematicDetailPage() {
         title={schematic.name}
         description={schematic.description || undefined}
         back={<Link to="/" className="inline-flex items-center gap-1 font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-muted hover:text-ink"><Icon name="chevronLeft" size={14} />{t('library')}</Link>}
-        actions={
-          <>
-            <Button icon="download" onClick={() => void api.schematics.download(id, schematic.originalFilename, asAdmin)}>{t('download')}</Button>
-            <Button icon="edit" onClick={() => setEditing((value) => !value)}>{t('edit')}</Button>
-            <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-control border border-ink bg-canvas px-3 font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-ink hover:bg-surface">
-              <Icon name="upload" size={14} />
-              {t('replaceFile')}
-              <input type="file" accept=".litematic,.schem,.nbt" className="sr-only" onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) void replaceFile(file);
-              }} />
-            </label>
-            <Button variant="danger" icon="trash" onClick={openDelete}>{t('delete')}</Button>
-          </>
-        }
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Metric label={t('dimensions')} value={`${schematic.dimensions.widthX}×${schematic.dimensions.heightY}×${schematic.dimensions.lengthZ}`} tone="accent" />
-        <Metric label={t('blocks')} value={schematic.totalBlocks.toLocaleString()} />
-        <Metric label={t('minecraftVersion')} value={schematic.minecraftVersion ?? '—'} />
-        <Metric label={t('file')} value={<span className="block truncate text-sm">{schematic.originalFilename}</span>} hint={schematic.format} />
-      </div>
       <NoticeBanner>{notice}</NoticeBanner>
 
       {editing && (
@@ -359,7 +368,133 @@ export function SchematicDetailPage() {
         )}
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(340px,0.85fr)]">
+      <Card className="w-full min-w-0 p-4">
+        <SectionHeading title={t('viewerControls')} action={<Badge tone="ink">{t('viewer3d')}</Badge>} />
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2 border-b border-dashed border-dash pb-3">
+              <label className={toggleClass(layerY !== null)}>
+                <input type="checkbox" checked={layerY !== null} onChange={(e) => setLayerY(e.target.checked ? Math.floor(schematic.dimensions.heightY / 2) : null)} className="sr-only" />
+                <Icon name="layers" size={13} />
+                {t('layer')}
+              </label>
+              <label className={toggleClass(layerMode && layerY !== null)}>
+                <input type="checkbox" disabled={layerY === null} checked={layerMode} onChange={(e) => setLayerMode(e.target.checked)} className="sr-only" />
+                <Icon name="grid" size={13} />
+                {t('layerMode')}
+              </label>
+              <label className={toggleClass(showGrid)}>
+                <input type="checkbox" checked={showGrid} onChange={(e) => setShowGrid(e.target.checked)} className="sr-only" />
+                <Icon name="grid" size={13} />
+                {t('showGrid')}
+              </label>
+              <label className={toggleClass(showRuler)}>
+                <input type="checkbox" checked={showRuler} onChange={(e) => setShowRuler(e.target.checked)} className="sr-only" />
+                <Icon name="ruler" size={13} />
+                {t('showRuler')}
+              </label>
+              <Button size="sm" variant={measureMode ? 'primary' : 'secondary'} icon="ruler" disabled={layerY === null} onClick={() => setMeasureMode((value) => !value)}>{t('measure')}</Button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 rounded-control border border-ink bg-canvas p-3">
+              <span className="label text-muted">{t('layers')}</span>
+              <IconButton label={t('previousLayer')} icon="chevronLeft" variant="secondary" size="sm" disabled={layerY === null || layerY === 0} onClick={() => stepLayer(-1)} />
+              <input
+                type="range"
+                min={0}
+                max={maxLayerY}
+                value={layerY ?? 0}
+                disabled={layerY === null}
+                onChange={(e) => setLayerY(Number(e.target.value))}
+                className="h-2 min-w-[120px] flex-1 accent-accent disabled:opacity-40"
+                aria-label={t('layer')}
+              />
+              <IconButton label={t('nextLayer')} icon="chevronRight" variant="secondary" size="sm" disabled={layerY === null || layerY >= maxLayerY} onClick={() => stepLayer(1)} />
+              <span className="tabular font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-ink">
+                {layerY === null ? t('allLayers') : `Y ${layerY} / ${maxLayerY}`}
+              </span>
+              <Button size="sm" variant={autoplay ? 'primary' : 'secondary'} icon={autoplay ? 'pause' : 'play'} disabled={layerY === null} onClick={() => setAutoplay((value) => !value)}>
+                {autoplay ? t('stopAutoplay') : t('autoplay')}
+              </Button>
+              <label className="flex items-center gap-1">
+                <span className="label text-muted">{t('autoSpeed')}</span>
+                <select
+                  value={autoSpeed}
+                  onChange={(e) => setAutoSpeed(Number(e.target.value))}
+                  className="h-8 rounded-control border border-ink bg-paper px-2 font-mono text-[10px] font-bold text-ink"
+                  aria-label={t('autoSpeed')}
+                >
+                  <option value={1400}>0.7×</option>
+                  <option value={900}>1×</option>
+                  <option value={450}>2×</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2 rounded-control border border-dashed border-dash bg-canvas p-2">
+              <span className="label text-muted">{t('context')}</span>
+              {(['off', 'low', 'high'] as const).map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  aria-pressed={contextPreset === preset}
+                  onClick={() => setContextPreset(preset)}
+                  className={`h-7 rounded-control border border-ink px-2 font-mono text-[10px] font-bold uppercase tracking-[0.08em] ${contextPreset === preset ? 'bg-accent text-ink' : 'bg-canvas text-muted hover:text-ink'}`}
+                >
+                  {preset === 'off' ? t('contextOff') : preset === 'low' ? t('contextLow') : t('contextHigh')}
+                </button>
+              ))}
+              <label className={toggleClass(isolateLayer)}>
+                <input type="checkbox" checked={isolateLayer} onChange={(e) => setIsolateLayer(e.target.checked)} className="sr-only" />
+                <Icon name="layers" size={13} />
+                {t('isolate')}
+              </label>
+              {layerY !== null && (
+                <span className="tabular font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted">
+                  {t('layerMaterials')}: {layerMaterialCount}
+                </span>
+              )}
+            </div>
+
+            <Field label={t('highlight')} hint={pinnedHighlight ? t('helpHighlight') : undefined}>
+              <select value={pinnedHighlight ?? ''} onChange={(e) => setPinnedHighlight(e.target.value || null)} className={inputClass}>
+                <option value="">{t('all')}</option>
+                {schematic.materials.map((material: Material) => (
+                  <option key={material.blockId} value={material.blockId}>{material.displayName}</option>
+                ))}
+              </select>
+            </Field>
+          </div>
+        </div>
+      </Card>
+
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <Card className="min-w-0 p-4">
+          <SectionHeading title={t('details')} action={<Badge tone="ink">{t('blocks')}</Badge>} />
+          <div className="grid grid-cols-2 gap-3">
+            <Metric label={t('dimensions')} value={`${schematic.dimensions.widthX}×${schematic.dimensions.heightY}×${schematic.dimensions.lengthZ}`} tone="accent" />
+            <Metric label={t('blocks')} value={schematic.totalBlocks.toLocaleString()} />
+            <Metric label={t('minecraftVersion')} value={schematic.minecraftVersion ?? '—'} />
+            <Metric label={t('file')} value={<span className="block truncate text-sm">{schematic.originalFilename}</span>} hint={schematic.format} />
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 border-t border-dashed border-dash pt-3">
+            <Button size="sm" icon="download" onClick={() => void api.schematics.download(id, schematic.originalFilename, asAdmin)}>{t('download')}</Button>
+            {isOwner && <Button size="sm" icon="refresh" onClick={() => void regenerateThumbnail()}>{t('captureThumbnail')}</Button>}
+            <Button size="sm" icon="edit" onClick={() => setEditing((value) => !value)}>{t('edit')}</Button>
+            <label className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-control border border-ink bg-canvas px-2.5 font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-ink hover:bg-surface">
+              <Icon name="upload" size={13} />
+              {t('replaceFile')}
+              <input type="file" accept=".litematic,.schem,.nbt" className="sr-only" onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void replaceFile(file);
+              }} />
+            </label>
+            <Button size="sm" variant="danger" icon="trash" onClick={openDelete}>{t('delete')}</Button>
+          </div>
+        </Card>
+
         <Card className="min-w-0 p-4">
           <Tabs
             className="mb-4"
@@ -463,105 +598,6 @@ export function SchematicDetailPage() {
               )}
             </div>
           )}
-        </Card>
-
-        <Card className="min-w-0 p-4">
-          <SectionHeading title={t('viewerControls')} action={<Badge tone="ink">{t('viewer3d')}</Badge>} />
-
-          <div className="flex flex-wrap items-center gap-2 border-b border-dashed border-dash pb-3">
-            <label className={toggleClass(layerY !== null)}>
-              <input type="checkbox" checked={layerY !== null} onChange={(e) => setLayerY(e.target.checked ? Math.floor(schematic.dimensions.heightY / 2) : null)} className="sr-only" />
-              <Icon name="layers" size={13} />
-              {t('layer')}
-            </label>
-            <label className={toggleClass(layerMode && layerY !== null)}>
-              <input type="checkbox" disabled={layerY === null} checked={layerMode} onChange={(e) => setLayerMode(e.target.checked)} className="sr-only" />
-              <Icon name="grid" size={13} />
-              {t('layerMode')}
-            </label>
-            <label className={toggleClass(showGrid)}>
-              <input type="checkbox" checked={showGrid} onChange={(e) => setShowGrid(e.target.checked)} className="sr-only" />
-              <Icon name="grid" size={13} />
-              {t('showGrid')}
-            </label>
-            <label className={toggleClass(showRuler)}>
-              <input type="checkbox" checked={showRuler} onChange={(e) => setShowRuler(e.target.checked)} className="sr-only" />
-              <Icon name="ruler" size={13} />
-              {t('showRuler')}
-            </label>
-            <Button size="sm" variant={measureMode ? 'primary' : 'secondary'} icon="ruler" disabled={layerY === null} onClick={() => setMeasureMode((value) => !value)}>{t('measure')}</Button>
-          </div>
-
-          <div className="mt-3 flex flex-wrap items-center gap-3 rounded-control border border-ink bg-canvas p-3">
-            <span className="label text-muted">{t('layers')}</span>
-            <IconButton label={t('previousLayer')} icon="chevronLeft" variant="secondary" size="sm" disabled={layerY === null || layerY === 0} onClick={() => stepLayer(-1)} />
-            <input
-              type="range"
-              min={0}
-              max={maxLayerY}
-              value={layerY ?? 0}
-              disabled={layerY === null}
-              onChange={(e) => setLayerY(Number(e.target.value))}
-              className="h-2 min-w-[120px] flex-1 accent-accent disabled:opacity-40"
-              aria-label={t('layer')}
-            />
-            <IconButton label={t('nextLayer')} icon="chevronRight" variant="secondary" size="sm" disabled={layerY === null || layerY >= maxLayerY} onClick={() => stepLayer(1)} />
-            <span className="tabular font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-ink">
-              {layerY === null ? t('allLayers') : `Y ${layerY} / ${maxLayerY}`}
-            </span>
-            <Button size="sm" variant={autoplay ? 'primary' : 'secondary'} icon={autoplay ? 'pause' : 'play'} disabled={layerY === null} onClick={() => setAutoplay((value) => !value)}>
-              {autoplay ? t('stopAutoplay') : t('autoplay')}
-            </Button>
-            <label className="flex items-center gap-1">
-              <span className="label text-muted">{t('autoSpeed')}</span>
-              <select
-                value={autoSpeed}
-                onChange={(e) => setAutoSpeed(Number(e.target.value))}
-                className="h-8 rounded-control border border-ink bg-paper px-2 font-mono text-[10px] font-bold text-ink"
-                aria-label={t('autoSpeed')}
-              >
-                <option value={1400}>0.7×</option>
-                <option value={900}>1×</option>
-                <option value={450}>2×</option>
-              </select>
-            </label>
-          </div>
-
-          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-control border border-dashed border-dash bg-canvas p-2">
-            <span className="label text-muted">{t('context')}</span>
-            {(['off', 'low', 'high'] as const).map((preset) => (
-              <button
-                key={preset}
-                type="button"
-                aria-pressed={contextPreset === preset}
-                onClick={() => setContextPreset(preset)}
-                className={`h-7 rounded-control border border-ink px-2 font-mono text-[10px] font-bold uppercase tracking-[0.08em] ${contextPreset === preset ? 'bg-accent text-ink' : 'bg-canvas text-muted hover:text-ink'}`}
-              >
-                {preset === 'off' ? t('contextOff') : preset === 'low' ? t('contextLow') : t('contextHigh')}
-              </button>
-            ))}
-            <label className={toggleClass(isolateLayer)}>
-              <input type="checkbox" checked={isolateLayer} onChange={(e) => setIsolateLayer(e.target.checked)} className="sr-only" />
-              <Icon name="layers" size={13} />
-              {t('isolate')}
-            </label>
-            {layerY !== null && (
-              <span className="tabular font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted">
-                {t('layerMaterials')}: {layerMaterialCount}
-              </span>
-            )}
-          </div>
-
-          <div className="mt-3">
-            <Field label={t('highlight')} hint={pinnedHighlight ? t('helpHighlight') : undefined}>
-              <select value={pinnedHighlight ?? ''} onChange={(e) => setPinnedHighlight(e.target.value || null)} className={inputClass}>
-                <option value="">{t('all')}</option>
-                {schematic.materials.map((material: Material) => (
-                  <option key={material.blockId} value={material.blockId}>{material.displayName}</option>
-                ))}
-              </select>
-            </Field>
-          </div>
         </Card>
       </div>
 

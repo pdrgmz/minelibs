@@ -1,5 +1,6 @@
-import { BlockDefinition, BlockModel, TextureAtlas } from 'deepslate/render';
-import type { Resources } from 'deepslate/render';
+import { BlockState } from 'deepslate/core';
+import { BlockDefinition, BlockModel, Cull, SpecialRenderers, TextureAtlas } from 'deepslate/render';
+import type { Resources, TextureAtlasProvider } from 'deepslate/render';
 
 /** Límite de peticiones simultáneas para no abrir cientos de conexiones. */
 const MAX_CONCURRENCY = 8;
@@ -67,6 +68,43 @@ function collectTextureIds(textures: unknown): string[] {
   };
   for (const value of Object.values(textures)) visit(value);
   return [...ids];
+}
+
+/**
+ * deepslate dibuja agua, cofres, cabezas, etc. con renderizadores especiales
+ * cuyas texturas no aparecen en los JSON de modelos. Preguntamos a esos
+ * renderizadores con un atlas ficticio para descargar las texturas correctas.
+ */
+export function collectSpecialTextureIds(blockStates: string[]): string[] {
+  const ids = new Set<string>();
+  const atlas: TextureAtlasProvider = {
+    getTextureUV: (texture) => {
+      ids.add(normalizeId(texture.toString()));
+      return [0, 0, 1, 1];
+    },
+    getTextureAtlas: () => ({} as ImageData),
+  };
+  const cull = Cull.none();
+  for (const state of blockStates) {
+    try {
+      SpecialRenderers.getBlockMesh(BlockState.parse(state), undefined, atlas, cull);
+    } catch {
+      // Un bloque sin datos suficientes para el renderizador especial no añade texturas.
+    }
+  }
+  return [...ids];
+}
+
+/**
+ * Los líquidos deben dibujarse en la pasada transparente y no generar caras
+ * internas entre celdas vecinas del mismo fluido.
+ */
+export function blockFlagsFor(id: string | { toString(): string }): { opaque: boolean; semi_transparent?: boolean; self_culling?: boolean } {
+  const name = normalizeId(id.toString());
+  if (name === 'minecraft:water' || name === 'minecraft:lava') {
+    return { opaque: false, semi_transparent: true, self_culling: true };
+  }
+  return { opaque: false };
 }
 
 interface LoaderCache {
@@ -146,9 +184,13 @@ export class AssetLoader {
     return blob;
   }
 
-  /** Descarga todo lo necesario para los IDs dados y construye el `Resources` de deepslate. */
-  async buildResources(blockIds: string[], onProgress?: (progress: AssetProgress) => void): Promise<Resources> {
-    const blockKeys = [...new Set(blockIds.map(normalizeId))];
+  /**
+   * Descarga todo lo necesario para los estados de bloque dados y construye el
+   * `Resources` de deepslate. Los estados conservan propiedades como
+   * `waterlogged` para que los renderizadores especiales pidan sus texturas.
+   */
+  async buildResources(blockStates: string[], onProgress?: (progress: AssetProgress) => void): Promise<Resources> {
+    const blockKeys = [...new Set(blockStates.map(normalizeId))];
     onProgress?.({ phase: 'definitions', done: 0, total: blockKeys.length });
 
     let definitionsDone = 0;
@@ -173,6 +215,7 @@ export class AssetLoader {
       onProgress?.({ phase: 'models', done: modelsDone, total: modelList.length });
     }));
 
+    for (const id of collectSpecialTextureIds(blockStates)) this.cache.referencedTextures.add(id);
     const textureIds = [...this.cache.referencedTextures];
     onProgress?.({ phase: 'textures', done: 0, total: textureIds.length });
     let texturesDone = 0;
@@ -197,7 +240,7 @@ export class AssetLoader {
       getTextureUV: (id) => atlas.getTextureUV(id),
       getTextureAtlas: () => atlas.getTextureAtlas(),
       getPixelSize: () => atlas.getPixelSize(),
-      getBlockFlags: () => ({ opaque: false }),
+      getBlockFlags: (id) => blockFlagsFor(id),
       getBlockProperties: () => null,
       getDefaultBlockProperties: () => null,
     };
